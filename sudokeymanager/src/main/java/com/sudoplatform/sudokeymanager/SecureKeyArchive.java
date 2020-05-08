@@ -1,0 +1,529 @@
+/*
+ * Copyright 2018 - Anonyome Labs, Inc. - All rights reserved
+ */
+package com.sudoplatform.sudokeymanager;
+
+import androidx.annotation.Keep;
+
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Multimap;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.annotations.SerializedName;
+import java.nio.charset.Charset;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import org.spongycastle.util.encoders.Base64;
+import timber.log.Timber;
+
+import static com.sudoplatform.sudokeymanager.SecureKeyArchiveException.ARCHIVE_EMPTY;
+import static com.sudoplatform.sudokeymanager.SecureKeyArchiveException.FATAL_ERROR;
+import static com.sudoplatform.sudokeymanager.SecureKeyArchiveException.INVALID_ARCHIVE_DATA;
+import static com.sudoplatform.sudokeymanager.SecureKeyArchiveException.INVALID_PASSWORD;
+import static com.sudoplatform.sudokeymanager.SecureKeyArchiveException.MALFORMED_ARCHIVEDATA;
+import static com.sudoplatform.sudokeymanager.SecureKeyArchiveException.MALFORMED_KEYSET_DATA;
+import static com.sudoplatform.sudokeymanager.SecureKeyArchiveException.VERSION_MISMATCH;
+
+/**
+ * A class that can read, write and process an encrypted archive
+ * containing a set of cryptographic keys that are themselves
+ * encrypted with a symmetric key derived from a password.
+ */
+
+public class SecureKeyArchive implements SecureKeyArchiveInterface {
+
+    /** Secure key archive format version */
+    private static final int     ARCHIVE_VERSION = 2;
+
+    /** Secure key entry format version */
+    private static final int     KEY_VERSION = 1;
+
+    private static final Charset UTF8 = Charset.forName("UTF-8");
+
+    private KeyManagerInterface keyManager;
+    private KeyArchive          keyArchive;
+    private final Set<String>   excludedKeys = new HashSet<>();
+    private final Set<KeyInfo>  keys         = new HashSet<>();
+    private final Gson          gson;
+
+    private SecureKeyArchive(KeyManagerInterface keyManager) {
+        this.keyManager = keyManager;
+
+        gson = new GsonBuilder()
+            .registerTypeAdapter(KeyType.class, new KeyTypeJsonAdapter())
+            .disableHtmlEscaping()
+            .create();
+    }
+
+    private SecureKeyArchive(byte[] archiveData, KeyManagerInterface keyManager) throws SecureKeyArchiveException {
+        this(keyManager);
+
+        // Meta info might be needed before the archive is unarchived.
+        if (hasValue(archiveData)) {
+            loadArchive(archiveData);
+        }
+    }
+
+    /** Reads the base64 data and converts it to JSON and then deserialises it into a KeyArchive */
+    private void loadArchive(byte[] archiveData) throws SecureKeyArchiveException {
+        if (hasNoValue(archiveData)) {
+            throw new SecureKeyArchiveException(ARCHIVE_EMPTY, "Archive data is empty");
+        }
+        String keyArchiveJson = new String(Base64.decode(archiveData), UTF8).trim();
+        keyArchive = gson.fromJson(keyArchiveJson, KeyArchive.class);
+        if (keyArchive == null) {
+            throw new SecureKeyArchiveException(MALFORMED_ARCHIVEDATA, "Unable to deserialise the JSON of the archive");
+        }
+        if (keyArchive.Version != ARCHIVE_VERSION) {
+            throw new SecureKeyArchiveException(VERSION_MISMATCH,
+                String.format("Version %d in the archive data is incompatible with expected version %d",
+                    keyArchive.Version, ARCHIVE_VERSION));
+        }
+    }
+
+    /**
+     * Returns an instance of a SecureKeyArchiveInterface.
+     *
+     * @param keyManager the key manager instance that will be used to encrypt the keys in this archive.
+     * @return a secure key archive that uses the nominated key manager.
+     */
+    public static SecureKeyArchiveInterface getInstance(KeyManagerInterface keyManager) {
+        return new SecureKeyArchive(keyManager);
+    }
+
+    /**
+     * Returns an instance of a SecureKeyArchiveInterface initaliased with the
+     * encrypted archive data.
+     *
+     * @param archiveData: encrypted key archive data.
+     * @param keyManager the key manager instance that will be used to encrypt the keys in this archive.
+     * @return a secure key archive that uses the nominated key manager.
+     * @throws SecureKeyArchiveException if the loading failed with one of the following reasons:
+     * {@link SecureKeyArchiveException#MALFORMED_ARCHIVEDATA},
+     * {@link SecureKeyArchiveException#FATAL_ERROR}
+     */
+    public static SecureKeyArchiveInterface getInstance(byte[] archiveData,
+                                                        KeyManagerInterface keyManager)
+                                                        throws SecureKeyArchiveException {
+        return new SecureKeyArchive(archiveData, keyManager);
+    }
+
+    /**
+     * Loads keys from the secure store into the archive.
+     *
+     * @throws KeyManagerException if the keys could not be exported.
+     * @throws StoreNotExportable if the key store does not permit keys to be exported.
+     */
+    @Override
+    public void loadKeys() throws KeyManagerException {
+        List<KeyComponents> exportedKeys = keyManager.exportKeys();
+        for (KeyComponents keyComponents : exportedKeys) {
+            if (excludedKeys.contains(keyComponents.name)) {
+                continue;
+            }
+            if (hasValue(keyComponents.key)) {
+                keys.add(KeyInfo.make(keyComponents.name, keyComponents.keyType, keyComponents.key));
+            }
+        }
+    }
+
+    /**
+     * Saves the keys in this archive to the secure store.
+     *
+     * @throws SecureKeyArchiveException with one of the following reasons:
+     * {@link SecureKeyArchiveException#ARCHIVE_EMPTY},
+     * {@link SecureKeyArchiveException#FATAL_ERROR}
+     */
+    @Override
+    public void saveKeys() throws SecureKeyArchiveException {
+        if (keys.isEmpty()) {
+            throw new SecureKeyArchiveException(ARCHIVE_EMPTY, "Key archive is empty. Have you called loadKeys?");
+        }
+        try {
+            // Remove all keys first to avoid any conflicts.
+            keyManager.removeAllKeys();
+        } catch (KeyManagerException e) {
+            throw new SecureKeyArchiveException(FATAL_ERROR, e.toString(), e);
+        }
+        try {
+            Multimap<String, KeyInfo> keyPairs = ArrayListMultimap.create();
+            for (KeyInfo keyInfo : keys) {
+                if (keyInfo.Name == null || excludedKeys.contains(keyInfo.Name) ||
+                        keyInfo.Type == null || keyInfo.data == null) {
+                    continue;
+                }
+                switch (keyInfo.Type) {
+                    case PASSWORD:
+                        keyManager.addPassword(keyInfo.data, keyInfo.Name, true);
+                        break;
+                    case SYMMETRIC_KEY:
+                        keyManager.addSymmetricKey(keyInfo.data, keyInfo.Name, true);
+                        break;
+                    case PRIVATE_KEY:
+                    case PUBLIC_KEY:
+                        // Collect the public and private keys so they can be matched up into pairs
+                        keyPairs.put(keyInfo.Name, keyInfo);
+                        break;
+                    default:
+                        break;
+                }
+            }
+
+            // Match the private and public keys with the same name and add them as a key pair.
+            for (Map.Entry<String, Collection<KeyInfo>> entry : keyPairs.asMap().entrySet()) {
+                if (entry.getValue().size() == 2) {
+                    // A public and private key
+                    addKeyPair(entry.getKey(), entry.getValue());
+                } else if (entry.getValue().size() == 1) {
+                    // Possibly a public key on its own
+                    addKey(entry.getValue());
+                } else {
+                    throw new AssertionError("Programming error, logic inconsistency 1");
+                }
+            }
+        } catch (KeyManagerException e) {
+            throw new SecureKeyArchiveException(FATAL_ERROR, e.toString(), e);
+        }
+    }
+
+    private void addKeyPair(String keyName, Collection<KeyInfo> keys) throws KeyManagerException {
+        KeyInfo publicKey = null;
+        KeyInfo privateKey = null;
+        for (KeyInfo key : keys) {
+            if (key.Type == KeyType.PRIVATE_KEY) {
+                privateKey = key;
+            } else if (key.Type == KeyType.PUBLIC_KEY) {
+                publicKey = key;
+            } else {
+                throw new AssertionError("Programming error, logic inconsistency 2");
+            }
+        }
+        if (publicKey == null || privateKey == null || !publicKey.Name.equals(privateKey.Name)) {
+            throw new AssertionError("Programming error, logic inconsistency 3");
+        }
+        keyManager.addKeyPair(privateKey.data, publicKey.data, keyName, true);
+    }
+
+    private void addKey(Collection<KeyInfo> keys) throws KeyManagerException {
+        for (KeyInfo key : keys) {
+            if (key.Type == KeyType.PRIVATE_KEY) {
+                Timber.e("Orphaned private key found in key archive");
+            } else if (key.Type == KeyType.PUBLIC_KEY) {
+                keyManager.addPublicKey(key.data, key.Name, true);
+            } else {
+                throw new AssertionError("Programming error, logic inconsistency 4");
+            }
+        }
+    }
+
+    /**
+     * Archives and encrypts the keys loaded into this archive.
+     *
+     * @param password the password to use to encrypt the archive.
+     * @return encrypted archive data.
+     * @throws SecureKeyArchiveException with one of the following reasons:
+     * {@link SecureKeyArchiveException#INVALID_PASSWORD},
+     * {@link SecureKeyArchiveException#ARCHIVE_EMPTY},
+     * {@link SecureKeyArchiveException#FATAL_ERROR}
+     */
+    @Override
+    public byte[] archive(String password) throws SecureKeyArchiveException {
+        if (hasNoValue(password)) {
+            throw new SecureKeyArchiveException(INVALID_PASSWORD, "Invalid password, it must not be null or empty.");
+        }
+        if (keys.isEmpty()) {
+            throw new SecureKeyArchiveException(ARCHIVE_EMPTY, "Key archive is empty. Have you called loadKeys?");
+        }
+
+        // Set up the key archive container
+        if (keyArchive == null) {
+            keyArchive = new KeyArchive();
+        }
+        keyArchive.Version = ARCHIVE_VERSION;
+
+        // Create a symmetric key from the password for encrypting the keys
+        byte[] symmetricKey = null;
+        try {
+            KeyComponents keyComponents = keyManager.createSymmetricKeyFromPassword(password);
+            symmetricKey = keyComponents.key;
+            keyArchive.Rounds = keyComponents.rounds;
+            keyArchive.Salt = new String(Base64.encode(keyComponents.salt), UTF8);
+        } catch (KeyManagerException e) {
+            throw new SecureKeyArchiveException(INVALID_PASSWORD,
+                "Unable to create a key from the password", e);
+        }
+
+        // Convert the array of keys to JSON and then encrypt them
+        try {
+            String keysJson = gson.toJson(keys);
+            byte[] keysEncrypted = keyManager.encryptWithSymmetricKey(symmetricKey, keysJson.getBytes(UTF8));
+            keyArchive.Keys = new String(Base64.encode(keysEncrypted));
+        } catch (KeyManagerException e) {
+            throw new SecureKeyArchiveException(INVALID_PASSWORD,
+                "Unable to encrypt the keys with the password", e);
+        }
+
+        // Convert the entire keyArchive to JSON and base64 encode it.
+        String keyArchiveJson = gson.toJson(keyArchive);
+        return Base64.encode(keyArchiveJson.getBytes(UTF8));
+    }
+
+    /**
+     * Decrypts and unarchives the keys in this archive.
+     *
+     * @param password the password to use to decrypt the archive.
+     * @throws SecureKeyArchiveException with one of the following reasons:
+     * {@link SecureKeyArchiveException#INVALID_PASSWORD},
+     * {@link SecureKeyArchiveException#ARCHIVE_EMPTY},
+     * {@link SecureKeyArchiveException#INVALID_ARCHIVE_DATA},
+     * {@link SecureKeyArchiveException#MALFORMED_ARCHIVEDATA},
+     * {@link SecureKeyArchiveException#FATAL_ERROR}
+     */
+    @Override
+    public void unarchive(String password) throws SecureKeyArchiveException {
+        if (hasNoValue(password)) {
+            throw new SecureKeyArchiveException(INVALID_PASSWORD, "Invalid password, it must not be null or empty.");
+        }
+        if (hasNoValue(keyArchive.Keys)) {
+            throw new SecureKeyArchiveException(INVALID_ARCHIVE_DATA, "The Keys in the archive are empty");
+        }
+        if (hasNoValue(keyArchive.Salt) || keyArchive.Rounds < 1) {
+            throw new SecureKeyArchiveException(INVALID_ARCHIVE_DATA, "The archive lacks a Salt or Rounds value.");
+        }
+
+        byte[] keyDataEncrypted = Base64.decode(keyArchive.Keys);
+        if (hasNoValue(keyDataEncrypted)) {
+            throw new SecureKeyArchiveException(INVALID_ARCHIVE_DATA, "The Keys in the archive, after base64 decoding, are empty");
+        }
+        byte[] salt = Base64.decode(keyArchive.Salt);
+
+        byte[] symmetricKey = null;
+        try {
+            symmetricKey = keyManager.createSymmetricKeyFromPassword(password, salt, keyArchive.Rounds);
+        } catch (KeyManagerException e) {
+            throw new SecureKeyArchiveException(INVALID_PASSWORD,
+                "Unable to create a key from the password", e);
+        }
+
+        try {
+            byte[] iv = null;
+            if (hasValue(keyArchive.IV)) {
+                iv = Base64.decode(keyArchive.IV);
+            }
+            byte[] keyDataClear;
+            if (iv != null) {
+                keyDataClear = keyManager.decryptWithSymmetricKey(symmetricKey, keyDataEncrypted, iv);
+            } else {
+                keyDataClear = keyManager.decryptWithSymmetricKey(symmetricKey, keyDataEncrypted);
+            }
+            String keyArrayJson = new String(keyDataClear);
+            KeyInfo[] keyInfoArray = gson.fromJson(keyArrayJson, KeyInfo[].class);
+            if (keyInfoArray == null) {
+                throw new SecureKeyArchiveException(MALFORMED_KEYSET_DATA,
+                    "Unable to deserialise decrypted keys from the archive");
+            }
+            keys.clear();
+            for (KeyInfo keyInfo : keyInfoArray) {
+                keyInfo.data = Base64.decode(keyInfo.base64Data);
+                keys.add(keyInfo);
+            }
+        } catch (KeyManagerException e) {
+            throw new SecureKeyArchiveException(MALFORMED_KEYSET_DATA,
+                "Unable to decrypt keys from the archive", e);
+        }
+    }
+
+    /**
+     * Resets the archive by clearing loaded keys and archive data.
+     */
+    @Override
+    public void reset() {
+        keys.clear();
+        keyArchive = null;
+    }
+
+    /**
+     * Determines whether or not the archive contains the key with the
+     * specified name and type. The archive must be unarchived before the
+     * key can be searched.
+     *
+     * @param name the key name.
+     * @param type the key type.
+     * @return true if the specified key exists in the archive.
+     */
+    @Override
+    public boolean containsKey(String name, KeyType type) {
+        return findKey(name, type) != null;
+    }
+
+    private KeyInfo findKey(String name, KeyType type) {
+        for (KeyInfo keyInfo : keys) {
+            if (keyInfo.Name.equals(name) && keyInfo.Type == type) {
+                return keyInfo;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Retrieves the specified key data from the archive. The archive must
+     * be unarchived before the key data can be retrieved.
+     *
+     * @param name the key name.
+     * @param type the key type.
+     * @return a byte array containing the specified key data or null if it was not found.
+     */
+    @Override
+    public byte[] getKeyData(String name, KeyType type) {
+        KeyInfo keyInfo = findKey(name, type);
+        return keyInfo != null ? keyInfo.data : null;
+    }
+
+    /** @return the Key manager used for managing keys and performing cryptographic operations. */
+    @Override
+    public KeyManagerInterface getKeyManager() {
+        return keyManager;
+    }
+
+    /**
+     * Sets the Key manager used for managing keys and performing cryptographic operations.
+     *
+     * @param keyManager the Key manager used for managing keys and performing cryptographic operations.
+     */
+    @Override
+    public void setKeyManager(KeyManagerInterface keyManager) {
+        this.keyManager = keyManager;
+    }
+
+    /** @return the key names to exclude from the archive. */
+    @Override
+    public Set<String> getExcludedKeys() {
+        return Collections.unmodifiableSet(excludedKeys);
+    }
+
+    /**
+     * Sets the key names to exclude from the archive.
+     *
+     * @param excludedKeys the key names to exclude from the archive.
+     */
+    @Override
+    public void setExcludedKeys(Set<String> excludedKeys) {
+        this.excludedKeys.clear();
+        this.excludedKeys.addAll(excludedKeys);
+    }
+
+    /** @return the meta-information associated with this archive. */
+    @Override
+    public Map<String, String> getMetaInfo() {
+        if (keyArchive == null || keyArchive.MetaInfo == null) {
+            return Collections.emptyMap();
+        }
+        return Collections.unmodifiableMap(keyArchive.MetaInfo);
+    }
+
+    /**
+     * Sets the meta-information associated with this archive.
+     *
+     * @param metaInfo the meta-information associated with this archive.
+     */
+    @Override
+    public void setMetaInfo(Map<String, String> metaInfo) {
+        if (keyArchive == null) {
+            keyArchive = new KeyArchive();
+        }
+        if (keyArchive.MetaInfo == null) {
+            keyArchive.MetaInfo = new HashMap<>();
+        }
+        keyArchive.MetaInfo.clear();
+        keyArchive.MetaInfo.putAll(metaInfo);
+    }
+
+    /** @return the archive version. */
+    @Override
+    public int getVersion() {
+        return ARCHIVE_VERSION;
+    }
+
+    /** The JSON format of the key archive when converted by Gson */
+    @Keep
+    private static final class KeyArchive {
+        Map<String, String> MetaInfo;
+        int                 Rounds;
+        String              Salt;
+        String              Keys;
+        String              IV;
+        int                 Version;
+    }
+
+    /** The JSON format of a single key within the archive when converted by Gson */
+    @Keep
+    private static final class KeyInfo {
+        int     Version;
+        boolean Synchronizable;
+        String  NameSpace;
+        KeyType Type;
+        String  Name;
+        @SerializedName("Data")
+        String  base64Data;
+        @SerializedName("data")
+        byte[]  data;
+
+        private static KeyInfo make(String name, KeyType keyType, byte[] data) {
+            KeyInfo keyInfo = new KeyInfo();
+            keyInfo.Name = name;
+            keyInfo.Type = keyType;
+            keyInfo.data = Arrays.copyOf(data, data.length);
+            keyInfo.base64Data = new String(Base64.encode(keyInfo.data), UTF8);
+            keyInfo.Version = KEY_VERSION;
+            keyInfo.Synchronizable = false;
+            return keyInfo;
+        }
+
+        @Override
+        public String toString() {
+            final StringBuilder sb = new StringBuilder(getClass().getSimpleName());
+            sb.append("{ Version=").append(Version);
+            sb.append(", Synchronizable=").append(Synchronizable);
+            sb.append(", NameSpace='").append(NameSpace).append('\'');
+            sb.append(", Type='").append(Type).append('\'');
+            sb.append(", Name='").append(Name).append('\'');
+            sb.append(", Data='").append(base64Data).append('\'');
+            sb.append(", data.len='").append(data != null ? data.length : 0).append('\'');
+            sb.append('}');
+            return sb.toString();
+        }
+    }
+
+    @Override
+    public String toString() {
+        final StringBuilder sb = new StringBuilder(getClass().getSimpleName());
+        sb.append("{ keyArchive=").append(keyArchive);
+        sb.append(", excludedKeys=").append(excludedKeys);
+        sb.append(", keys=").append(keys);
+        sb.append('}');
+        return sb.toString();
+    }
+
+    private final boolean hasValue(String s) {
+        // I would have used !TextUtils.isEmpty(s) but it isn't available in unit tests
+        return s != null && !s.isEmpty();
+    }
+
+    private final boolean hasNoValue(String s) {
+        return !hasValue(s);
+    }
+
+    private final boolean hasValue(byte[] b) {
+        return b != null && b.length > 0;
+    }
+
+    private final boolean hasNoValue(byte[] b) {
+        return !hasValue(b);
+    }
+}
