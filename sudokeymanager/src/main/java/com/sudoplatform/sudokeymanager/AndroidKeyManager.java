@@ -94,10 +94,9 @@ public final class AndroidKeyManager extends KeyManager implements SecureKeyDele
 
     @Override
     public void addKeyPair(byte[] privateKey, byte[] publicKey, String name, boolean isExportable) throws KeyManagerException {
-        PublicKey publicKeyObj = this.bytesToPublicKey(publicKey);
-        PrivateKey privateKeyObj = this.bytesToPrivateKey(privateKey);
-
         try {
+            PublicKey publicKeyObj = this.bytesToPublicKey(publicKey);
+            PrivateKey privateKeyObj = this.bytesToPrivateKey(privateKey);
             // Android Keystore requires the private key to be accompanied by a certificate. We have
             // to use BouncyCastle (SpongyCastle in Android land) here since there's no security
             // provider on Android that supports generating a self-signed certificate.
