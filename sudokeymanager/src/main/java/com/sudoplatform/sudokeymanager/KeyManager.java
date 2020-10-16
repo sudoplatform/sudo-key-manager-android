@@ -408,11 +408,17 @@ public class KeyManager implements KeyManagerInterface {
     @Override
     public byte[] createSymmetricKeyFromPassword(String password, byte[] salt, int rounds) throws KeyManagerException {
         Objects.requireNonNull(password, PASSWORD_CANT_BE_NULL);
+        return this.createSymmetricKeyFromPassword(password.toCharArray(), salt, rounds);
+    }
+
+    @Override
+    public byte[] createSymmetricKeyFromPassword(char[] password, byte[] salt, int rounds) throws KeyManagerException {
+        Objects.requireNonNull(password, PASSWORD_CANT_BE_NULL);
         Objects.requireNonNull(salt, "salt can't be null.");
 
         SecretKey secretKey;
         try {
-            KeySpec keySpec = new PBEKeySpec(password.toCharArray(), salt, rounds, PASSWORD_KEY_SIZE);
+            KeySpec keySpec = new PBEKeySpec(password, salt, rounds, PASSWORD_KEY_SIZE);
             secretKey = passwordKeyFactory.generateSecret(keySpec);
         } catch (InvalidKeySpecException e) {
             throw new KeyManagerException("Failed to create password based symmetric key", e);
