@@ -414,6 +414,17 @@ public interface KeyManagerInterface extends AutoCloseable {
     byte[] createSymmetricKeyFromPassword(char[] password, byte[] salt, int rounds) throws KeyManagerException;
 
     /**
+     * Creates a symmetric key from the specified password.
+     *
+     * @param password password as byte array.
+     * @param salt salt to use for generating the key.
+     * @param rounds number of pseudo-random rounds to use for generating the key.
+     * @return generated symmetric key.
+     * @throws KeyManagerException if the key could not be created.
+     */
+    byte[] createSymmetricKeyFromPassword(byte[] password, byte[] salt, int rounds) throws KeyManagerException;
+
+    /**
      * Creates a SHA256 hash of the specified data.
      *
      * @param data data to hash.

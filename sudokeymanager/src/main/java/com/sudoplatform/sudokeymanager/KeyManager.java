@@ -45,6 +45,9 @@ import org.spongycastle.asn1.ASN1Encodable;
 import org.spongycastle.asn1.ASN1Primitive;
 import org.spongycastle.asn1.pkcs.PrivateKeyInfo;
 import org.spongycastle.asn1.x509.SubjectPublicKeyInfo;
+import org.spongycastle.crypto.digests.SHA256Digest;
+import org.spongycastle.crypto.generators.PKCS5S2ParametersGenerator;
+import org.spongycastle.crypto.params.KeyParameter;
 
 import static com.sudoplatform.sudokeymanager.KeyManagerInterface.PublicKeyEncryptionAlgorithm.RSA_ECB_OAEPSHA1;
 import static com.sudoplatform.sudokeymanager.KeyManagerInterface.PublicKeyEncryptionAlgorithm.RSA_ECB_PKCS1;
@@ -424,6 +427,17 @@ public class KeyManager implements KeyManagerInterface {
             throw new KeyManagerException("Failed to create password based symmetric key", e);
         }
         return secretKey != null ? secretKey.getEncoded() : null;
+    }
+
+    @Override
+    public byte[] createSymmetricKeyFromPassword(byte[] password, byte[] salt, int rounds) throws KeyManagerException {
+        Objects.requireNonNull(password, PASSWORD_CANT_BE_NULL);
+        Objects.requireNonNull(salt, "salt can't be null.");
+
+        PKCS5S2ParametersGenerator generator = new PKCS5S2ParametersGenerator(new SHA256Digest());
+        generator.init(password, salt, rounds);
+        KeyParameter secretKey = (KeyParameter)generator.generateDerivedMacParameters(PASSWORD_KEY_SIZE);
+        return secretKey.getKey();
     }
 
     @Override
