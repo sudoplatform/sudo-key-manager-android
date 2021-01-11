@@ -5,11 +5,12 @@ package com.sudoplatform.sudokeymanager;
 
 import androidx.annotation.Keep;
 
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.Multimap;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.annotations.SerializedName;
+
+import org.spongycastle.util.encoders.Base64;
+
 import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.Collection;
@@ -19,7 +20,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.spongycastle.util.encoders.Base64;
+
 import timber.log.Timber;
 
 import static com.sudoplatform.sudokeymanager.SecureKeyArchiveException.ARCHIVE_EMPTY;
@@ -152,7 +153,7 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
             throw new SecureKeyArchiveException(FATAL_ERROR, e.toString(), e);
         }
         try {
-            Multimap<String, KeyInfo> keyPairs = ArrayListMultimap.create();
+            Map<String, Set<KeyInfo>> keyPairs = new HashMap<>();
             for (KeyInfo keyInfo : keys) {
                 if (keyInfo.Name == null || excludedKeys.contains(keyInfo.Name) ||
                         keyInfo.Type == null || keyInfo.data == null) {
@@ -168,7 +169,10 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
                     case PRIVATE_KEY:
                     case PUBLIC_KEY:
                         // Collect the public and private keys so they can be matched up into pairs
-                        keyPairs.put(keyInfo.Name, keyInfo);
+                        if (!keyPairs.containsKey(keyInfo.Name)) {
+                            keyPairs.put(keyInfo.Name, new HashSet<>());
+                        }
+                        keyPairs.get(keyInfo.Name).add(keyInfo);
                         break;
                     default:
                         break;
@@ -176,7 +180,7 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
             }
 
             // Match the private and public keys with the same name and add them as a key pair.
-            for (Map.Entry<String, Collection<KeyInfo>> entry : keyPairs.asMap().entrySet()) {
+            for (Map.Entry<String, Set<KeyInfo>> entry : keyPairs.entrySet()) {
                 if (entry.getValue().size() == 2) {
                     // A public and private key
                     addKeyPair(entry.getKey(), entry.getValue());

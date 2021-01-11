@@ -4,10 +4,10 @@ apply plugin: 'kotlin-android-extensions'
 apply plugin: 'kotlin-kapt'
 
 android {
-    compileSdkVersion 28
+    compileSdkVersion 30
     defaultConfig {
         minSdkVersion 23
-        targetSdkVersion 28
+        targetSdkVersion 30
         versionCode 1
         versionName "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
@@ -42,6 +42,10 @@ android {
     }
 
     testOptions.unitTests.all {
+        outputs.upToDateWhen {false}
+        jacoco {
+            includeNoLocationClasses = true
+        }
         testLogging {
             events 'passed', 'skipped', 'failed', 'standardOut', 'standardError'
         }
@@ -50,28 +54,27 @@ android {
 
 dependencies {
     implementation "com.madgag.spongycastle:bcpkix-jdk15on:1.56.0.0"
-    implementation "com.google.code.gson:gson:2.8.0"
-    implementation "com.google.guava:guava:27.1-android"
+    implementation "com.google.code.gson:gson:2.8.6"
     implementation "com.jakewharton.timber:timber:4.7.1"
-    implementation "org.jetbrains.kotlin:kotlin-stdlib:1.3.41"
-    implementation "androidx.annotation:annotation:1.0.0"
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlinVersion"
+    implementation "androidx.annotation:annotation:1.1.0"
 
     // Unit testing
-    testImplementation("junit:junit:4.12") {
+    testImplementation("junit:junit:4.13.1") {
         exclude module: 'hamcrest-core'
     }
     testImplementation 'org.xerial:sqlite-jdbc:3.16.1'
-    androidTestImplementation "com.google.guava:guava:27.1-android"
+    androidTestImplementation "com.google.guava:guava:30.1-android"
 
     //roboelectric
-    testImplementation "org.robolectric:robolectric:4.3"
+    testImplementation "org.robolectric:robolectric:4.3.1"
 
     //testRunner
-    androidTestImplementation "androidx.test:runner:1.1.0"
+    androidTestImplementation "androidx.test:runner:1.3.0"
 
     //espresso
-    androidTestImplementation "androidx.test.espresso:espresso-core:3.1.0"
-    androidTestImplementation "androidx.test.ext:junit:1.1.0"
+    androidTestImplementation "androidx.test.espresso:espresso-core:3.3.0"
+    androidTestImplementation "androidx.test.ext:junit:1.1.2"
 }
 
 ext {
@@ -87,3 +90,41 @@ ext {
     }}
 
 apply from: "${rootProject.projectDir}/publish-mavencentral.gradle"
+
+// Jacoco test coverage
+apply plugin: 'jacoco'
+
+task jacocoTestReport(type: JacocoReport, dependsOn:"testDebugUnitTest") {
+    group = "Reporting"
+    description = "Generate Jacoco coverage reports"
+    classDirectories.setFrom(
+            fileTree(
+                    dir: "${buildDir}/tmp/kotlin-classes/debug",
+                    excludes: ['**/R.class',
+                               '**/R$*.class',
+                               '**/BuildConfig.*',
+                               '**/Manifest*.*']
+            ),
+            fileTree(
+                    dir: "${buildDir}/intermediates/javac/debug",
+                    excludes: ['**/R.class',
+                               '**/R$*.class',
+                               '**/BuildConfig.*',
+                               '**/Manifest*.*']
+            )
+    )
+    sourceDirectories.setFrom(files("${buildDir.parent}/sudokeymanager/src/main/java"))
+    executionData.setFrom(fileTree(["dir":"$buildDir", "includes":["**/*.exec", "**/*.ec"]]))
+    reports {
+        xml.enabled = true
+        html.enabled = true
+    }
+}
+
+// Sonarqube code analysis
+if (project.file("${rootProject.projectDir}/util/sonarqube.gradle").exists()) {
+    ext.sonarProjectKey = "sudo-keymanager-android"
+    ext.sonarProjectName = "sudo-keymanager-android"
+    ext.sonarExclusions = ["*.png", "*.jks", "*.json", "*.key"]
+    apply from: "${rootProject.projectDir}/util/sonarqube.gradle"
+}
