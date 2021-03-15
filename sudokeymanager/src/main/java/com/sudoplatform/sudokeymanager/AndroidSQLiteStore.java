@@ -32,6 +32,10 @@ public final class AndroidSQLiteStore extends SQLiteOpenHelper implements StoreI
     // Delegate for encrypting and decrypting keys.
     private SecureKeyDelegateInterface secureKeyDelegate;
 
+    // Key namespace used to prevent name clashes between keys used by multiple consumers of the
+    // underlying key store such as Android Keystore.
+    private String keyNamespace;
+
     /**
      * Instantiates AndroidSQLiteStore.
      *
@@ -39,6 +43,18 @@ public final class AndroidSQLiteStore extends SQLiteOpenHelper implements StoreI
      */
     public AndroidSQLiteStore(Context context) {
         super(context, DATABASE_NAME, null, DATABASE_VERSION);
+    }
+
+    /**
+     * Instantiates AndroidSQLiteStore.
+     *
+     * @param context Android app context.
+     * @param keyNamespace key namespace to use to prevent name clashes when multiple consumers are
+     *                     using the same underlying key store.
+     */
+    public AndroidSQLiteStore(Context context, String keyNamespace) {
+        super(context, DATABASE_NAME, null, DATABASE_VERSION);
+        this.keyNamespace = keyNamespace;
     }
 
     /**
@@ -76,7 +92,7 @@ public final class AndroidSQLiteStore extends SQLiteOpenHelper implements StoreI
         }
 
         ContentValues values = new ContentValues();
-        values.put(StoreSchema.Keys.COLUMN_NAME_NAME, name);
+        values.put(StoreSchema.Keys.COLUMN_NAME_NAME, this.toNamespacedName(name));
         values.put(StoreSchema.Keys.COLUMN_NAME_TYPE, type.getValue());
         values.put(StoreSchema.Keys.COLUMN_NAME_EXPORTABLE, isExportable ? 1 : 0);
         values.put(StoreSchema.Keys.COLUMN_NAME_DATA, keyBytes);
@@ -109,7 +125,7 @@ public final class AndroidSQLiteStore extends SQLiteOpenHelper implements StoreI
 
         String[] columns = { StoreSchema.Keys.COLUMN_NAME_DATA };
         String selection = StoreSchema.Keys.COLUMN_NAME_NAME + " = ? AND " + StoreSchema.Keys.COLUMN_NAME_TYPE + " = ?";
-        String[] selectionArgs = { name, String.valueOf(type.getValue())};
+        String[] selectionArgs = { this.toNamespacedName(name), String.valueOf(type.getValue())};
 
         try (Cursor cursor = db.query(
                 StoreSchema.Keys.TABLE_NAME,
@@ -142,7 +158,7 @@ public final class AndroidSQLiteStore extends SQLiteOpenHelper implements StoreI
         SQLiteDatabase db = this.getWritableDatabase();
 
         String selection = StoreSchema.Keys.COLUMN_NAME_NAME + " = ? AND " + StoreSchema.Keys.COLUMN_NAME_TYPE + " = ?";
-        String[] selectionArgs = { name, String.valueOf(type.getValue())};
+        String[] selectionArgs = { this.toNamespacedName(name), String.valueOf(type.getValue())};
         db.delete(StoreSchema.Keys.TABLE_NAME, selection, selectionArgs);
     }
 
@@ -151,7 +167,11 @@ public final class AndroidSQLiteStore extends SQLiteOpenHelper implements StoreI
         SQLiteDatabase db = this.getWritableDatabase();
 
         try {
-            db.execSQL(SQL_DELETE_ALL);
+            if(this.keyNamespace != null) {
+                db.delete(StoreSchema.Keys.TABLE_NAME, StoreSchema.Keys.COLUMN_NAME_NAME + " LIKE ?", new String[]{ this.keyNamespace + ".%" });
+            } else {
+                db.execSQL(SQL_DELETE_ALL);
+            }
         } catch (SQLException e) {
             throw new StoreException("Failed to reset the store.", e);
         }
@@ -180,21 +200,43 @@ public final class AndroidSQLiteStore extends SQLiteOpenHelper implements StoreI
         String[] columns = { StoreSchema.Keys.COLUMN_NAME_NAME };
         Set<String> aliases = new HashSet<>();
 
-        try (Cursor cursor = db.query(
-            StoreSchema.Keys.TABLE_NAME,
-            columns,
-            null,
-            null,
-            null,
-            null,
-            null)
-        ) {
-            while (cursor.moveToNext()) {
-                aliases.add(cursor.getString(0));
+        if (this.keyNamespace != null) {
+            try (Cursor cursor = db.query(
+                    StoreSchema.Keys.TABLE_NAME,
+                    columns,
+                    StoreSchema.Keys.COLUMN_NAME_NAME + " LIKE ?",
+                    new String[]{this.keyNamespace + ".%"},
+                    null,
+                    null,
+                    null)
+            ) {
+                while (cursor.moveToNext()) {
+                    aliases.add(cursor.getString(0).substring((this.keyNamespace + ".").length()));
+                }
+            } catch (Exception e) {
+                throw new StoreException("Failed to retrieve key aliases.", e);
             }
-        } catch (Exception e) {
-            throw new StoreException("Failed to retrieve key aliases.", e);
+        } else {
+            try (Cursor cursor = db.query(
+                    StoreSchema.Keys.TABLE_NAME,
+                    columns,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null)
+            ) {
+                while (cursor.moveToNext()) {
+                    aliases.add(cursor.getString(0));
+                }
+            } catch (Exception e) {
+                throw new StoreException("Failed to retrieve key aliases.", e);
+            }
         }
         return aliases;
+    }
+
+    private String toNamespacedName(String name) {
+        return this.keyNamespace != null ? this.keyNamespace + "." + name : name;
     }
 }

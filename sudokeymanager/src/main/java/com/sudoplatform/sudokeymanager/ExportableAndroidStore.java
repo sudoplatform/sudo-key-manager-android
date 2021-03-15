@@ -28,17 +28,21 @@ public final class ExportableAndroidStore implements StoreInterface {
     private static final String TYPE_CANT_BE_NULL = "type can't be null.";
 
     // Exportable store to store the copies of keys that can be exported.
-    private StoreInterface exportableStore;
+    final private StoreInterface exportableStore;
 
     // Android Keystore. This is where crypto will be done so keys are not leaked into user space.
-    private KeyStore androidKeyStore;
+    final private KeyStore androidKeyStore;
 
     // Android Keystore requires the keys to be stored with metadata indicating what their purposes
     // are so we will need to let consumer of this store specify the intent and store them for
     // future use.
-    private String symmetricKeyAlgorithm;
-    private String symmetricKeyAlgorithmBlockMode;
-    private String symmetricKeyAlgorithmEncryptingPadding;
+    final private String symmetricKeyAlgorithm;
+    final private String symmetricKeyAlgorithmBlockMode;
+    final private String symmetricKeyAlgorithmEncryptingPadding;
+
+    // Key namespace used to prevent name clashes between keys used by multiple consumers of the
+    // underlying key store such as Android Keystore.
+    private String keyNamespace;
 
     /**
      * Instantiates a ExportableAndroidStore.
@@ -62,6 +66,40 @@ public final class ExportableAndroidStore implements StoreInterface {
         this.symmetricKeyAlgorithmBlockMode = symmetricKeyAlgorithmBlockMode;
         this.symmetricKeyAlgorithmEncryptingPadding = symmetricKeyAlgorithmEncryptingPadding;
         this.exportableStore = new AndroidSQLiteStore(context);
+        try {
+            this.androidKeyStore = KeyStore.getInstance(ANDROID_KEY_STORE);
+            this.androidKeyStore.load(null);
+        } catch (KeyStoreException| CertificateException | NoSuchAlgorithmException | IOException e) {
+            throw new KeyManagerException("Failed to load Android Keystore.", e);
+        }
+    }
+
+    /**
+     * Instantiates a ExportableAndroidStore.
+     *
+     * @param context Android app context.
+     * @param symmetricKeyAlgorithm symmetric key algorithm.
+     * @param symmetricKeyAlgorithmBlockMode symmetric key encryption block mode.
+     * @param symmetricKeyAlgorithmEncryptingPadding symmetric key encryption padding.
+     * @param keyNamespace key namespace to use to prevent name clashes when multiple consumers are
+     *                     using the same underlying key store.
+     * @throws KeyManagerException
+     */
+    public ExportableAndroidStore(Context context,
+                                  String symmetricKeyAlgorithm,
+                                  String symmetricKeyAlgorithmBlockMode,
+                                  String symmetricKeyAlgorithmEncryptingPadding,
+                                  String keyNamespace) throws KeyManagerException {
+        Objects.requireNonNull(context, "context can't be null.");
+        Objects.requireNonNull(symmetricKeyAlgorithm, "symmetricKeyAlgorithm can't be null.");
+        Objects.requireNonNull(symmetricKeyAlgorithmBlockMode, "symmetricKeyAlgorithmBlockMode can't be null.");
+        Objects.requireNonNull(symmetricKeyAlgorithmEncryptingPadding, "symmetricKeyAlgorithmEncryptingPadding can't be null.");
+
+        this.symmetricKeyAlgorithm = symmetricKeyAlgorithm;
+        this.symmetricKeyAlgorithmBlockMode = symmetricKeyAlgorithmBlockMode;
+        this.symmetricKeyAlgorithmEncryptingPadding = symmetricKeyAlgorithmEncryptingPadding;
+        this.exportableStore = new AndroidSQLiteStore(context, keyNamespace);
+        this.keyNamespace = keyNamespace;
         try {
             this.androidKeyStore = KeyStore.getInstance(ANDROID_KEY_STORE);
             this.androidKeyStore.load(null);
@@ -102,7 +140,7 @@ public final class ExportableAndroidStore implements StoreInterface {
 
                 try {
                     this.androidKeyStore.setEntry(
-                            name,
+                            this.toNamespacedName(name),
                             new KeyStore.SecretKeyEntry(secretKey),
                             builder.build());
                 } catch (KeyStoreException e) {
@@ -139,7 +177,7 @@ public final class ExportableAndroidStore implements StoreInterface {
 
         this.exportableStore.deleteKey(name, type);
         try {
-            this.androidKeyStore.deleteEntry(name);
+            this.androidKeyStore.deleteEntry(this.toNamespacedName(name));
         } catch (KeyStoreException e) {
             throw new KeyManagerException("Failed to delete a key.", e);
         }
@@ -152,7 +190,13 @@ public final class ExportableAndroidStore implements StoreInterface {
             Enumeration<String> aliases = this.androidKeyStore.aliases();
             while (aliases.hasMoreElements()) {
                 String alias = aliases.nextElement();
-                this.androidKeyStore.deleteEntry(alias);
+                if(this.keyNamespace != null) {
+                    if (alias.startsWith(this.keyNamespace + ".")) {
+                        this.androidKeyStore.deleteEntry(alias);
+                    }
+                } else {
+                    this.androidKeyStore.deleteEntry(alias);
+                }
             }
         } catch (KeyStoreException e) {
             throw new KeyManagerException("Failed to reset Android keystore.", e);
@@ -195,11 +239,21 @@ public final class ExportableAndroidStore implements StoreInterface {
         try {
             Enumeration<String> aliases = androidKeyStore.aliases();
             while (aliases.hasMoreElements()) {
-                aliasSet.add(aliases.nextElement());
+                String alias = aliases.nextElement();
+                if (this.keyNamespace != null) {
+                    aliasSet.add(alias.substring((this.keyNamespace + ".").length()));
+                } else {
+                    aliasSet.add(alias);
+                }
             }
         } catch (KeyStoreException e) {
             throw new KeyManagerException("Failed to query Android keystore for key aliases.", e);
         }
         return aliasSet;
     }
+
+    private String toNamespacedName(String name) {
+        return this.keyNamespace != null ? this.keyNamespace + "." + name : name;
+    }
+
 }

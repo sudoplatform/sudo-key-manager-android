@@ -58,9 +58,15 @@ public final class AndroidKeyManager extends KeyManager implements SecureKeyDele
     // store.
     private final KeyStore androidKeyStore;
 
+    // Key namespace used to prevent name clashes between keys used by multiple consumers of the
+    // underlying key store such as Android Keystore.
+    private String keyNamespace;
+
     /**
      * Instantiate AndroidKeyManager.
      *
+     * @param storeInterface Key store to use for exportable keys.
+     * @param androidKeyStore Android Keystore to use for securely storing keys.
      * @throws KeyManagerException
      */
     public AndroidKeyManager(StoreInterface storeInterface, KeyStore androidKeyStore) throws KeyManagerException {
@@ -70,13 +76,32 @@ public final class AndroidKeyManager extends KeyManager implements SecureKeyDele
         createMasterKey();
     }
 
+    /**
+     * Instantiate AndroidKeyManager.
+     *
+     * @param storeInterface Key store to use for exportable keys.
+     * @param androidKeyStore Android Keystore to use for securely storing keys.
+     * @param keyNamespace key namespace to use to prevent name clashes when multiple consumers are
+     *                     using the same underlying key store.
+     * @throws KeyManagerException
+     */
+    public AndroidKeyManager(StoreInterface storeInterface, KeyStore androidKeyStore, String keyNamespace) throws KeyManagerException {
+        super(storeInterface);
+        this.keyManagerStore.setSecureKeyDelegate(this);
+        this.androidKeyStore = androidKeyStore;
+        this.keyNamespace = keyNamespace;
+        createMasterKey();
+    }
+
     /** Create a non exportable symmetric key that will be used to secure the exportable keys. */
     private void createMasterKey() throws KeyManagerException {
-        if (getSymmetricKey(MASTER_KEY_NAME) != null) {
+        String masterKeyName = this.toNamespacedName(MASTER_KEY_NAME);
+
+        if (getSymmetricKey(masterKeyName) != null) {
             return;
         }
         try {
-            KeyGenParameterSpec.Builder builder = new KeyGenParameterSpec.Builder(MASTER_KEY_NAME,
+            KeyGenParameterSpec.Builder builder = new KeyGenParameterSpec.Builder(masterKeyName,
                 KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT);
             KeyGenParameterSpec keySpec = builder
                 .setKeySize(KeyManager.SYMMETRIC_KEY_SIZE)
@@ -118,7 +143,7 @@ public final class AndroidKeyManager extends KeyManager implements SecureKeyDele
 
             X509Certificate certificate = getCertificateConverter().getCertificate(builder.build(signer));
 
-            this.androidKeyStore.setKeyEntry(name, privateKeyObj, null, new Certificate[] { certificate });
+            this.androidKeyStore.setKeyEntry(this.toNamespacedName(name), privateKeyObj, null, new Certificate[] { certificate });
             // Now store the exportable copies of the keys since we can't extract keys from Android Keystore.
             this.keyManagerStore.insertKey(privateKey, name, KeyType.PRIVATE_KEY,isExportable);
             this.keyManagerStore.insertKey(publicKey, name, KeyType.PUBLIC_KEY,isExportable);
@@ -161,7 +186,7 @@ public final class AndroidKeyManager extends KeyManager implements SecureKeyDele
         // https://anonyome.atlassian.net/browse/NPFA-9542
         for (int attempt = 1; ; attempt++) {
             try {
-                return androidKeyStore.getEntry(name, param);
+                return this.androidKeyStore.getEntry(this.toNamespacedName(name), param);
             } catch (UnrecoverableEntryException ex) {
                 if (attempt < 5 && isSystemError(ex)) {
                     Log.w(TAG, "Error getting AndroidKeyStore entry. Attempt=" + attempt, ex);
@@ -261,5 +286,9 @@ public final class AndroidKeyManager extends KeyManager implements SecureKeyDele
     public void removeAllKeys() throws KeyManagerException {
         super.removeAllKeys();
         createMasterKey();
+    }
+
+    private String toNamespacedName(String name) {
+        return this.keyNamespace != null ? this.keyNamespace + "." + name : name;
     }
 }
