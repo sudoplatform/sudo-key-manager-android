@@ -95,13 +95,11 @@ public final class AndroidKeyManager extends KeyManager implements SecureKeyDele
 
     /** Create a non exportable symmetric key that will be used to secure the exportable keys. */
     private void createMasterKey() throws KeyManagerException {
-        String masterKeyName = this.toNamespacedName(MASTER_KEY_NAME);
-
-        if (getSymmetricKey(masterKeyName) != null) {
+        if (getSymmetricKey(MASTER_KEY_NAME) != null) {
             return;
         }
         try {
-            KeyGenParameterSpec.Builder builder = new KeyGenParameterSpec.Builder(masterKeyName,
+            KeyGenParameterSpec.Builder builder = new KeyGenParameterSpec.Builder(this.toNamespacedName(MASTER_KEY_NAME),
                 KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT);
             KeyGenParameterSpec keySpec = builder
                 .setKeySize(KeyManager.SYMMETRIC_KEY_SIZE)
