@@ -1,7 +1,7 @@
 apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
-apply plugin: 'kotlin-android-extensions'
 apply plugin: 'kotlin-kapt'
+apply plugin: "org.owasp.dependencycheck"
 
 android {
     compileSdkVersion 30
@@ -9,7 +9,7 @@ android {
         minSdkVersion 23
         targetSdkVersion 30
         versionCode 1
-        versionName "1.0"
+        versionName "3.7.3"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         multiDexEnabled true
     }
@@ -56,10 +56,10 @@ dependencies {
     implementation "com.google.code.gson:gson:2.8.6"
     implementation "com.jakewharton.timber:timber:4.7.1"
     implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlinVersion"
-    implementation "androidx.annotation:annotation:1.1.0"
+    implementation "androidx.annotation:annotation:1.2.0"
 
     // Unit testing
-    testImplementation("junit:junit:4.13.1") {
+    testImplementation("junit:junit:4.13.2") {
         exclude module: 'hamcrest-core'
     }
     testImplementation 'org.xerial:sqlite-jdbc:3.16.1'
@@ -76,19 +76,90 @@ dependencies {
     androidTestImplementation "androidx.test.ext:junit:1.1.2"
 }
 
-ext {
-    PUBLISH_GROUP_ID = 'com.sudoplatform'
-    PUBLISH_ARTIFACT_ID = 'sudokeymanager'
-    PUBLISH_DESCRIPTION = 'Key Manager SDK for the Sudo Platform by Anonyome Labs.'
-    PUBLISH_PROJECT_URL = 'https://github.com/sudoplatform/sudo-key-manager-android'
-    PUBLISH_PROJECT_SCM = 'scm:git:github.com/sudoplatform/sudo-key-manager-android.git'
-    if (project.hasProperty('tag')) {
-        PUBLISH_VERSION = "$tag"
-    } else {
-        PUBLISH_VERSION = "0.0.0"
-    }}
+// Returns a list of `configurations` which should not be scanned for vulnerabilities
+def getConfigurationsToSkip = { configs ->
+    configs.findAll {
+        it.name.startsWithAny("androidTest", "test", "lint") ||
+                it.name.contains("AndroidTest") ||
+                it.name.contains("UnitTest")
+    }.collect {
+        it.name
+    }
+}
 
-apply from: "${rootProject.projectDir}/publish-mavencentral.gradle"
+tasks.register("printConfigurationsToSkip") {
+    group = "OWASP dependency-check"
+    description = "Print the configurations which are skipped when scanning for vulnerable dependencies"
+    doLast {
+        println "Configurations to skip when scanning for vulnerable dependencies:"
+        println getConfigurationsToSkip(configurations).join("\n")
+    }
+}
+
+afterEvaluate {
+    // NOTE: this must be within `afterEvaluate` to ensure all the configurations have been created before filtering them
+    dependencyCheck {
+        suppressionFile file("../dependency-suppression.xml").toString()
+        failBuildOnCVSS 0
+        skipConfigurations = getConfigurationsToSkip(configurations)
+    }
+}
+
+// https://github.com/cookpad/license-tools-plugin
+apply plugin: "com.cookpad.android.licensetools"
+licenseTools {
+    licensesYaml = file("licenses.yml")
+    ignoredGroups = ["com.nhaarman:mockito-kotlin", "com.anonyome", "com.sudoplatform"]
+    ignoredProjects = ["org.mockito"]
+}
+
+@Grab('org.yaml:snakeyaml:1.17') // Yaml parser
+import org.yaml.snakeyaml.Yaml
+
+task checkLicenseHaveRequiredFields {
+    description = "Check every license entry has the mandatory fields"
+    group = "verification"
+    doLast {
+        def mandatoryFields = ["artifact", "name", "copyrightHolder", "url"]
+        Yaml parser = new Yaml()
+        def licenses = parser.load((file("licenses.yml") as File).text)
+        def errors = new StringBuilder()
+        licenses.each { artifact ->
+            mandatoryFields.each { field ->
+                if (artifact[field] == null) {
+                    errors.append("License entry '${artifact.artifact}' is missing required element `$field`\n")
+                }
+            }
+            if (artifact["license"] == null && artifact["licenseUrl" == null]) {
+                errors.append("License entry '${artifact.artifact}' must have one of [license,licenseUrl]\n")
+            }
+        }
+        if (errors.length() > 0) {
+            throw new GradleException("Missing license elements:\n$errors")
+        }
+    }
+}
+checkLicenses.finalizedBy checkLicenseHaveRequiredFields
+
+ext {
+    projectArtifact = 'sudokeymanager'
+    projectDescription = 'Key Manager SDK for the Sudo Platform by Anonyome Labs.'
+    projectUrl = 'https://github.com/sudoplatform/sudo-key-manager-android'
+    projectSCM = 'scm:git:github.com/sudoplatform/sudo-key-manager-android.git'
+    if (project.hasProperty('tag')) {
+        projectVersion = "$tag"
+    } else {
+        projectVersion = project.android.defaultConfig.versionName
+    }
+}
+
+if(project.findProperty("tag") &&
+        project.file("${rootProject.projectDir}/util/publish-mavencentral.gradle").exists()) {
+    apply from: "${rootProject.projectDir}/util/publish-mavencentral.gradle"
+}
+else if (project.file("${rootProject.projectDir}/util/publish-internal-android.gradle").exists()) {
+    apply from: "${rootProject.projectDir}/util/publish-internal-android.gradle"
+}
 
 // Jacoco test coverage
 apply plugin: 'jacoco'

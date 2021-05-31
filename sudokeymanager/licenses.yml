@@ -1,0 +1,54 @@
+- artifact: com.madgag.spongycastle:bcpkix-jdk15on:+
+  name: Spongy Castle
+  copyrightHolder: The Legion of the Bouncy Castle Inc.
+  license: Bouncy Castle Licence
+  licenseUrl: http://www.bouncycastle.org/licence.html
+  url: http://rtyley.github.io/spongycastle/
+- artifact: androidx.annotation:annotation:+
+  name: Android Support Library Annotations
+  copyrightHolder: Google, Inc.
+  license: The Apache Software License, Version 2.0
+  licenseUrl: http://www.apache.org/licenses/LICENSE-2.0.txt
+  url: https://developer.android.com/jetpack/androidx/releases/annotation#1.2.0
+- artifact: com.jakewharton.timber:timber:+
+  name: Timber
+  copyrightHolder: Jake Wharton
+  license: The Apache Software License, Version 2.0
+  licenseUrl: http://www.apache.org/licenses/LICENSE-2.0.txt
+  url: https://github.com/JakeWharton/timber
+- artifact: com.madgag.spongycastle:core:+
+  name: Spongy Castle
+  copyrightHolder: The Legion of the Bouncy Castle Inc.
+  license: Bouncy Castle Licence
+  licenseUrl: http://www.bouncycastle.org/licence.html
+  url: http://rtyley.github.io/spongycastle/
+- artifact: com.madgag.spongycastle:prov:+
+  name: Spongy Castle
+  copyrightHolder: The Legion of the Bouncy Castle Inc.
+  license: Bouncy Castle Licence
+  licenseUrl: http://www.bouncycastle.org/licence.html
+  url: http://rtyley.github.io/spongycastle/
+- artifact: org.jetbrains.kotlin:kotlin-stdlib:+
+  name: Kotlin Stdlib
+  copyrightHolder: JetBrains, Inc.
+  license: The Apache License, Version 2.0
+  licenseUrl: http://www.apache.org/licenses/LICENSE-2.0.txt
+  url: https://kotlinlang.org/
+- artifact: org.jetbrains:annotations:+
+  name: JetBrains Java Annotations
+  copyrightHolder: JetBrains, Inc.
+  license: The Apache Software License, Version 2.0
+  licenseUrl: http://www.apache.org/license/LICENSE-2.0.txt
+  url: https://github.com/JetBrains/java-annotations
+- artifact: com.google.code.gson:gson:+
+  name: Gson
+  copyrightHolder: Google, Inc.
+  license: The Apache Software License, Version 2.0
+  licenseUrl: http://www.apache.org/licenses/LICENSE-2.0.txt
+  url: https://github.com/google/gson
+- artifact: org.jetbrains.kotlin:kotlin-stdlib-common:+
+  name: Kotlin Stdlib Common
+  copyrightHolder: JetBrains, Inc.
+  license: The Apache License, Version 2.0
+  licenseUrl: http://www.apache.org/licenses/LICENSE-2.0.txt
+  url: https://kotlinlang.org/
