@@ -52,10 +52,10 @@ android {
 }
 
 dependencies {
-    implementation "com.madgag.spongycastle:bcpkix-jdk15on:1.56.0.0"
-    implementation "com.google.code.gson:gson:2.8.6"
+    implementation "com.madgag.spongycastle:bcpkix-jdk15on:1.58.0.0"
+    implementation "com.google.code.gson:gson:2.8.8"
     implementation "com.jakewharton.timber:timber:4.7.1"
-    implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlinVersion"
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:${kotlinVersion}"
     implementation "androidx.annotation:annotation:1.2.0"
 
     // Unit testing
@@ -66,14 +66,14 @@ dependencies {
     androidTestImplementation "com.google.guava:guava:30.1-android"
 
     //roboelectric
-    testImplementation "org.robolectric:robolectric:4.3.1"
+    testImplementation "org.robolectric:robolectric:4.6.1"
 
     //testRunner
-    androidTestImplementation "androidx.test:runner:1.3.0"
+    androidTestImplementation "androidx.test:runner:1.4.0"
 
     //espresso
-    androidTestImplementation "androidx.test.espresso:espresso-core:3.3.0"
-    androidTestImplementation "androidx.test.ext:junit:1.1.2"
+    androidTestImplementation "androidx.test.espresso:espresso-core:3.4.0"
+    androidTestImplementation "androidx.test.ext:junit:1.1.3"
 }
 
 // Returns a list of `configurations` which should not be scanned for vulnerabilities
@@ -163,6 +163,10 @@ else if (project.file("${rootProject.projectDir}/util/publish-internal-android.g
 
 // Jacoco test coverage
 apply plugin: 'jacoco'
+
+jacoco {
+    toolVersion = "0.8.7"
+}
 
 task jacocoTestReport(type: JacocoReport, dependsOn:"testDebugUnitTest") {
     group = "Reporting"
