@@ -37,8 +37,6 @@ public final class ExportableAndroidStore implements StoreInterface {
     // are so we will need to let consumer of this store specify the intent and store them for
     // future use.
     final private String symmetricKeyAlgorithm;
-    final private String symmetricKeyAlgorithmBlockMode;
-    final private String symmetricKeyAlgorithmEncryptingPadding;
 
     // Key namespace used to prevent name clashes between keys used by multiple consumers of the
     // underlying key store such as Android Keystore.
@@ -49,22 +47,14 @@ public final class ExportableAndroidStore implements StoreInterface {
      *
      * @param context Android app context.
      * @param symmetricKeyAlgorithm symmetric key algorithm.
-     * @param symmetricKeyAlgorithmBlockMode symmetric key encryption block mode.
-     * @param symmetricKeyAlgorithmEncryptingPadding symmetric key encryption padding.
      * @throws KeyManagerException
      */
     public ExportableAndroidStore(Context context,
-                                  String symmetricKeyAlgorithm,
-                                  String symmetricKeyAlgorithmBlockMode,
-                                  String symmetricKeyAlgorithmEncryptingPadding) throws KeyManagerException {
+                                  String symmetricKeyAlgorithm) throws KeyManagerException {
         Objects.requireNonNull(context, "context can't be null.");
         Objects.requireNonNull(symmetricKeyAlgorithm, "symmetricKeyAlgorithm can't be null.");
-        Objects.requireNonNull(symmetricKeyAlgorithmBlockMode, "symmetricKeyAlgorithmBlockMode can't be null.");
-        Objects.requireNonNull(symmetricKeyAlgorithmEncryptingPadding, "symmetricKeyAlgorithmEncryptingPadding can't be null.");
 
         this.symmetricKeyAlgorithm = symmetricKeyAlgorithm;
-        this.symmetricKeyAlgorithmBlockMode = symmetricKeyAlgorithmBlockMode;
-        this.symmetricKeyAlgorithmEncryptingPadding = symmetricKeyAlgorithmEncryptingPadding;
         this.exportableStore = new AndroidSQLiteStore(context);
         try {
             this.androidKeyStore = KeyStore.getInstance(ANDROID_KEY_STORE);
@@ -79,25 +69,17 @@ public final class ExportableAndroidStore implements StoreInterface {
      *
      * @param context Android app context.
      * @param symmetricKeyAlgorithm symmetric key algorithm.
-     * @param symmetricKeyAlgorithmBlockMode symmetric key encryption block mode.
-     * @param symmetricKeyAlgorithmEncryptingPadding symmetric key encryption padding.
      * @param keyNamespace key namespace to use to prevent name clashes when multiple consumers are
      *                     using the same underlying key store.
      * @throws KeyManagerException
      */
     public ExportableAndroidStore(Context context,
                                   String symmetricKeyAlgorithm,
-                                  String symmetricKeyAlgorithmBlockMode,
-                                  String symmetricKeyAlgorithmEncryptingPadding,
                                   String keyNamespace) throws KeyManagerException {
         Objects.requireNonNull(context, "context can't be null.");
         Objects.requireNonNull(symmetricKeyAlgorithm, "symmetricKeyAlgorithm can't be null.");
-        Objects.requireNonNull(symmetricKeyAlgorithmBlockMode, "symmetricKeyAlgorithmBlockMode can't be null.");
-        Objects.requireNonNull(symmetricKeyAlgorithmEncryptingPadding, "symmetricKeyAlgorithmEncryptingPadding can't be null.");
 
         this.symmetricKeyAlgorithm = symmetricKeyAlgorithm;
-        this.symmetricKeyAlgorithmBlockMode = symmetricKeyAlgorithmBlockMode;
-        this.symmetricKeyAlgorithmEncryptingPadding = symmetricKeyAlgorithmEncryptingPadding;
         this.exportableStore = new AndroidSQLiteStore(context, keyNamespace);
         this.keyNamespace = keyNamespace;
         try {
@@ -130,12 +112,9 @@ public final class ExportableAndroidStore implements StoreInterface {
                 KeyProtection.Builder builder = new KeyProtection.Builder(KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT);
                 builder.setRandomizedEncryptionRequired(false);
 
-                if (this.symmetricKeyAlgorithmBlockMode != null) {
-                    builder.setBlockModes(this.symmetricKeyAlgorithmBlockMode);
-                }
-
-                if (this.symmetricKeyAlgorithmEncryptingPadding != null) {
-                    builder.setEncryptionPaddings(this.symmetricKeyAlgorithmEncryptingPadding);
+                if (this.symmetricKeyAlgorithm.equals(KeyManager.SYMMETRIC_KEY_ALGORITHM_AES)) {
+                    builder.setBlockModes(KeyProperties.BLOCK_MODE_CBC, KeyProperties.BLOCK_MODE_GCM);
+                    builder.setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_PKCS7, KeyProperties.ENCRYPTION_PADDING_NONE);
                 }
 
                 try {

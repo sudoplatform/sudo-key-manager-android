@@ -18,7 +18,8 @@ public interface KeyManagerInterface extends AutoCloseable {
 
     /** The symmetric encryption algorithms supported by KeyManagerAndroid kit */
     enum SymmetricEncryptionAlgorithm {
-        AES_CBC_PKCS7_256;
+        AES_CBC_PKCS7_256,
+        AES_GCM_256;
     }
 
     /**
@@ -144,7 +145,7 @@ public interface KeyManagerInterface extends AutoCloseable {
      *
      * @param name name of the symmetric key to use to encrypt.
      * @param data data to encrypt.
-     * @param iv initialization vector. Must be 128 bit in size.
+     * @param iv initialization vector. Must be 128 bit in size for AES-CBC and 96 for AES-GCM.
      * @return encrypted data.
      * @throws KeyManagerException on failure which might contain a java.security exception.
      */
@@ -155,7 +156,7 @@ public interface KeyManagerInterface extends AutoCloseable {
      *
      * @param name name of the symmetric key to use to encrypt.
      * @param data data to encrypt.
-     * @param iv initialization vector. Must be 128 bit in size.
+     * @param iv initialization vector. Must be 128 bit in size for AES-CBC and 96 for AES-GCM.
      * @param algorithm the encryption algorithm to use.
      * @return encrypted data.
      * @throws KeyManagerException on failure which might contain a java.security exception.
@@ -188,7 +189,7 @@ public interface KeyManagerInterface extends AutoCloseable {
      *
      * @param key raw key bytes of the symmetric key to use to encrypt.
      * @param data data to encrypt.
-     * @param iv initialization vector. Must be 128 bit in size.
+     * @param iv initialization vector. Must be 128 bit in size for AES-CBC and 96 for AES-GCM.
      * @return encrypted data.
      * @throws KeyManagerException on failure which might contain a java.security exception.
      */
@@ -199,7 +200,7 @@ public interface KeyManagerInterface extends AutoCloseable {
      *
      * @param key raw key bytes of the symmetric key to use to encrypt.
      * @param data data to encrypt.
-     * @param iv initialization vector. Must be 128 bit in size.
+     * @param iv initialization vector. Must be 128 bit in size for AES-CBC and 96 for AES-GCM.
      * @param algorithm the encryption algorithm to use.
      * @return encrypted data.
      * @throws KeyManagerException on failure which might contain a java.security exception.
@@ -253,7 +254,7 @@ public interface KeyManagerInterface extends AutoCloseable {
      *
      * @param name name of the symmetric key to use to decrypt.
      * @param data data to decrypt.
-     * @param iv initialization vector. Must be 128 bit in size.
+     * @param iv initialization vector. Must be 128 bit in size for AES-CBC and 96 for AES-GCM.
      * @return decrypted data.
      * @throws KeyManagerException on failure which might contain a java.security exception.
      */
@@ -264,7 +265,7 @@ public interface KeyManagerInterface extends AutoCloseable {
      *
      * @param name name of the symmetric key to use to decrypt.
      * @param data data to decrypt.
-     * @param iv initialization vector. Must be 128 bit in size.
+     * @param iv initialization vector. Must be 128 bit in size for AES-CBC and 96 for AES-GCM.
      * @param algorithm the decryption algorithm to use.
      * @return decrypted data.
      * @throws KeyManagerException on failure which might contain a java.security exception.
@@ -276,7 +277,7 @@ public interface KeyManagerInterface extends AutoCloseable {
      *
      * @param name name of the symmetric key to use to decrypt.
      * @param stream input stream to decrypt.
-     * @param iv initialization vector. Must be 128 bit in size.
+     * @param iv initialization vector. Must be 128 bit in size for AES-CBC and 96 for AES-GCM.
      * @return decrypted data stream.
      * @throws KeyManagerException on failure which might contain a java.security exception.
      */
@@ -287,7 +288,7 @@ public interface KeyManagerInterface extends AutoCloseable {
      *
      * @param name name of the symmetric key to use to decrypt.
      * @param stream input stream to decrypt.
-     * @param iv initialization vector. Must be 128 bit in size.
+     * @param iv initialization vector. Must be 128 bit in size for AES-CBC and 96 for AES-GCM.
      * @param algorithm the decryption algorithm to use.
      * @return decrypted data stream.
      * @throws KeyManagerException on failure which might contain a java.security exception.
@@ -341,7 +342,7 @@ public interface KeyManagerInterface extends AutoCloseable {
      *
      * @param key raw key bytes of the symmetric key to use to encrypt.
      * @param data data to decrypt.
-     * @param iv initialization vector. Must be 128 bit in size.
+     * @param iv initialization vector. Must be 128 bit in size for AES-CBC and 96 for AES-GCM.
      * @return decrypted data.
      * @throws KeyManagerException on failure which might contain a java.security exception.
      */
@@ -352,7 +353,7 @@ public interface KeyManagerInterface extends AutoCloseable {
      *
      * @param key raw key bytes of the symmetric key to use to encrypt.
      * @param data data to decrypt.
-     * @param iv initialization vector. Must be 128 bit in size.
+     * @param iv initialization vector. Must be 128 bit in size for AES-CBC and 96 for AES-GCM.
      * @param algorithm the decryption algorithm to use.
      * @return decrypted data.
      * @throws KeyManagerException on failure which might contain a java.security exception.
@@ -364,7 +365,7 @@ public interface KeyManagerInterface extends AutoCloseable {
      *
      * @param key symmetric key reference.
      * @param stream data to decrypt.
-     * @param iv Initialization vector. Must be 128 bit in size.
+     * @param iv Initialization vector. Must be 128 bit in size for AES-CBC and 96 for AES-GCM.
      * @return decrypted data stream
      * @throws KeyManagerException on failure which might contain a java.security exception.
      */
@@ -375,7 +376,7 @@ public interface KeyManagerInterface extends AutoCloseable {
      *
      * @param key symmetric key reference.
      * @param stream data to decrypt.
-     * @param iv Initialization vector. Must be 128 bit in size.
+     * @param iv Initialization vector. Must be 128 bit in size for AES-CBC and 96 for AES-GCM.
      * @param algorithm the decryption algorithm to use.
      * @return decrypted data stream
      * @throws KeyManagerException on failure which might contain a java.security exception.

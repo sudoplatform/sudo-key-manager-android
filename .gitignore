@@ -45,3 +45,6 @@ register_key*
 
 # ktlint
 .editorconfig
+
+# jacoco
+sudokeymanager/jacoco.exec

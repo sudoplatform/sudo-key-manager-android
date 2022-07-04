@@ -1,5 +1,7 @@
 package com.sudoplatform.sudokeymanager;
 
+import static com.sudoplatform.sudokeymanager.KeyManagerInterface.SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256;
+
 import android.os.Build;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
@@ -272,12 +274,12 @@ public final class AndroidKeyManager extends KeyManager implements SecureKeyDele
 
     @Override
     public byte[] encryptKey(byte[] key) throws KeyManagerException {
-        return this.encryptWithSymmetricKey(MASTER_KEY_NAME, key);
+        return this.encryptWithSymmetricKey(MASTER_KEY_NAME, key, AES_CBC_PKCS7_256);
     }
 
     @Override
     public byte[] decryptKey(byte[] key) throws KeyManagerException {
-        return this.decryptWithSymmetricKey(MASTER_KEY_NAME, key);
+        return this.decryptWithSymmetricKey(MASTER_KEY_NAME, key, AES_CBC_PKCS7_256);
     }
 
     @Override

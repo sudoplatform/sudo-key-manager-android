@@ -37,6 +37,7 @@ import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
@@ -62,14 +63,20 @@ import static com.sudoplatform.sudokeymanager.KeyManagerInterface.SymmetricEncry
 public class KeyManager implements KeyManagerInterface {
 
     // Constants related to symmetric key crypto.
-    static final String SYMMETRIC_KEY_ALGORITHM = "AES";
-    static final String SYMMETRIC_KEY_ALGORITHM_BLOCK_MODE = "CBC";
-    static final String SYMMETRIC_KEY_ALGORITHM_ENCRYPTION_PADDING = "PKCS7Padding";
-    protected static final String SYMMETRIC_KEY_CIPHER = SYMMETRIC_KEY_ALGORITHM + "/" + SYMMETRIC_KEY_ALGORITHM_BLOCK_MODE + "/" + SYMMETRIC_KEY_ALGORITHM_ENCRYPTION_PADDING;
+    static final String SYMMETRIC_KEY_ALGORITHM_AES = "AES";
+    static final String AES_BLOCK_MODE_CBC = "CBC";
+    static final String AES_BLOCK_MODE_GCM = "GCM";
+    static final String AES_PADDING_PKCS7 = "PKCS7Padding";
+    static final String AES_PADDING_NONE = "NoPadding";
+    protected static final String AES_CBC_CIPHER = SYMMETRIC_KEY_ALGORITHM_AES + "/" + AES_BLOCK_MODE_CBC + "/" + AES_PADDING_PKCS7;
+    protected static final String AES_GCM_CIPHER = SYMMETRIC_KEY_ALGORITHM_AES + "/" + AES_BLOCK_MODE_GCM + "/" + AES_PADDING_NONE;
     protected static final int SYMMETRIC_KEY_SIZE = 256;
     protected static final int SYMMETRIC_KEY_ALGORITHM_BLOCK_SIZE = 128;
+    protected static final int SYMMETRIC_KEY_ALGORITHM_TAG_SIZE = 128;
+    protected static final int SYMMETRIC_KEY_ALGORITHM_AES_GCM_IV_SIZE_IN_BYTES = 12;
     protected static final int SYMMETRIC_KEY_ALGORITHM_BLOCK_SIZE_IN_BYTES = SYMMETRIC_KEY_ALGORITHM_BLOCK_SIZE >> 3;
-    private static final byte[] DEFAULT_SYMMETRIC_IV = new byte[SYMMETRIC_KEY_ALGORITHM_BLOCK_SIZE_IN_BYTES];
+    private static final byte[] DEFAULT_AES_CBC_IV = new byte[SYMMETRIC_KEY_ALGORITHM_BLOCK_SIZE_IN_BYTES];
+    private static final byte[] DEFAULT_AES_GCM_IV = new byte[SYMMETRIC_KEY_ALGORITHM_AES_GCM_IV_SIZE_IN_BYTES];
 
     // Constants related to password key crypto.
     protected static final int PASSWORD_KEY_SIZE = 256;
@@ -118,12 +125,25 @@ public class KeyManager implements KeyManagerInterface {
     protected SecretKeyFactory passwordKeyFactory;
 
     @SuppressWarnings("squid:S4787") // Use of encryption is safe here
-    private static final ThreadLocal<Cipher> symmetricKeyCipher = new ThreadLocal<Cipher>() {
+    private static final ThreadLocal<Cipher> aesCbcCipher = new ThreadLocal<Cipher>() {
 
         @Override
         protected Cipher initialValue() {
             try {
-                return Cipher.getInstance(SYMMETRIC_KEY_CIPHER);
+                return Cipher.getInstance(AES_CBC_CIPHER);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+    };
+
+    @SuppressWarnings("squid:S4787") // Use of encryption is safe here
+    private static final ThreadLocal<Cipher> aesGcmCipher = new ThreadLocal<Cipher>() {
+
+        @Override
+        protected Cipher initialValue() {
+            try {
+                return Cipher.getInstance(AES_GCM_CIPHER);
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -169,7 +189,7 @@ public class KeyManager implements KeyManagerInterface {
     @SuppressWarnings("squid:S4790") // Use of hashing is safe here
     protected void setupKeyGenerators() throws KeyManagerException {
         try {
-            this.keyGenerator = KeyGenerator.getInstance(SYMMETRIC_KEY_ALGORITHM);
+            this.keyGenerator = KeyGenerator.getInstance(SYMMETRIC_KEY_ALGORITHM_AES);
             this.keyGenerator.init(SYMMETRIC_KEY_SIZE);
             this.keyPairGenerator = KeyPairGenerator.getInstance(PRIVATE_PUBLIC_KEY_ALGORITHM);
             this.keyPairGenerator.initialize(PRIVATE_PUBLIC_KEY_SIZE);
@@ -255,12 +275,12 @@ public class KeyManager implements KeyManagerInterface {
 
     @Override
     public byte[] encryptWithSymmetricKey(String name, byte[] data) throws KeyManagerException {
-        return encryptWithSymmetricKey(name, data, DEFAULT_SYMMETRIC_IV, AES_CBC_PKCS7_256);
+        return encryptWithSymmetricKey(name, data, this.getDefaultIV(AES_CBC_PKCS7_256), AES_CBC_PKCS7_256);
     }
 
     @Override
     public byte[] encryptWithSymmetricKey(String name, byte[] data, SymmetricEncryptionAlgorithm algorithm) throws KeyManagerException {
-        return encryptWithSymmetricKey(name, data, DEFAULT_SYMMETRIC_IV, algorithm);
+        return encryptWithSymmetricKey(name, data, this.getDefaultIV(algorithm), algorithm);
     }
 
     @Override
@@ -277,12 +297,12 @@ public class KeyManager implements KeyManagerInterface {
 
     @Override
     public byte[] encryptWithSymmetricKey(byte[] key, byte[] data) throws KeyManagerException {
-        return encryptWithSymmetricKey(key, data, DEFAULT_SYMMETRIC_IV, AES_CBC_PKCS7_256);
+        return encryptWithSymmetricKey(key, data, this.getDefaultIV(AES_CBC_PKCS7_256), AES_CBC_PKCS7_256);
     }
 
     @Override
     public byte[] encryptWithSymmetricKey(byte[] key, byte[] data, SymmetricEncryptionAlgorithm algorithm) throws KeyManagerException {
-        return this.encryptWithSymmetricKey(key, data, DEFAULT_SYMMETRIC_IV, algorithm);
+        return this.encryptWithSymmetricKey(key, data, this.getDefaultIV(algorithm), algorithm);
     }
 
     @Override
@@ -294,18 +314,18 @@ public class KeyManager implements KeyManagerInterface {
     public byte[] encryptWithSymmetricKey(byte[] key, byte[] data, byte[] iv, SymmetricEncryptionAlgorithm algorithm) throws KeyManagerException {
         Objects.requireNonNull(key, KEY_CANT_BE_NULL);
 
-        SecretKeySpec keySpec = new SecretKeySpec(key, SYMMETRIC_KEY_ALGORITHM);
+        SecretKeySpec keySpec = new SecretKeySpec(key, SYMMETRIC_KEY_ALGORITHM_AES);
         return this.encryptWithSymmetricKey(keySpec, data, iv, algorithm);
     }
 
     @Override
     public byte[] decryptWithSymmetricKey(String name, byte[] data) throws KeyManagerException {
-        return this.decryptWithSymmetricKey(name, data, DEFAULT_SYMMETRIC_IV, AES_CBC_PKCS7_256);
+        return this.decryptWithSymmetricKey(name, data, this.getDefaultIV(AES_CBC_PKCS7_256), AES_CBC_PKCS7_256);
     }
 
     @Override
     public byte[] decryptWithSymmetricKey(String name, byte[] data, SymmetricEncryptionAlgorithm algorithm) throws KeyManagerException {
-        return this.decryptWithSymmetricKey(name, data, DEFAULT_SYMMETRIC_IV, algorithm);
+        return this.decryptWithSymmetricKey(name, data, this.getDefaultIV(algorithm), algorithm);
     }
 
     @Override
@@ -317,12 +337,12 @@ public class KeyManager implements KeyManagerInterface {
 
     @Override
     public InputStream decryptWithSymmetricKey(String name, InputStream stream) throws KeyManagerException {
-        return decryptWithSymmetricKey(name, stream, DEFAULT_SYMMETRIC_IV, AES_CBC_PKCS7_256);
+        return decryptWithSymmetricKey(name, stream, this.getDefaultIV(AES_CBC_PKCS7_256), AES_CBC_PKCS7_256);
     }
 
     @Override
     public InputStream decryptWithSymmetricKey(String name, InputStream stream, SymmetricEncryptionAlgorithm algorithm) throws KeyManagerException {
-        return this.decryptWithSymmetricKey(name, stream, DEFAULT_SYMMETRIC_IV, algorithm);
+        return this.decryptWithSymmetricKey(name, stream, this.getDefaultIV(algorithm), algorithm);
     }
 
     @Override
@@ -349,37 +369,37 @@ public class KeyManager implements KeyManagerInterface {
 
     @Override
     public byte[] decryptWithSymmetricKey(byte[] key, byte[] data) throws KeyManagerException {
-        return this.decryptWithSymmetricKey(key, data, DEFAULT_SYMMETRIC_IV, AES_CBC_PKCS7_256);
+        return this.decryptWithSymmetricKey(key, data, this.getDefaultIV(AES_CBC_PKCS7_256), AES_CBC_PKCS7_256);
     }
 
     @Override
     public byte[] decryptWithSymmetricKey(byte[] key, byte[] data, SymmetricEncryptionAlgorithm algorithm) throws KeyManagerException {
-        return this.decryptWithSymmetricKey(key, data, DEFAULT_SYMMETRIC_IV, algorithm);
+        return this.decryptWithSymmetricKey(key, data, this.getDefaultIV(algorithm), algorithm);
     }
 
     @Override
     public byte[] decryptWithSymmetricKey(byte[] key, byte[] data, byte[] iv, SymmetricEncryptionAlgorithm algorithm) throws KeyManagerException {
         Objects.requireNonNull(key, KEY_CANT_BE_NULL);
 
-        SecretKeySpec keySpec = new SecretKeySpec(key, SYMMETRIC_KEY_ALGORITHM);
+        SecretKeySpec keySpec = new SecretKeySpec(key, SYMMETRIC_KEY_ALGORITHM_AES);
         return this.decryptWithSymmetricKey(keySpec, data, iv, algorithm);
     }
 
     @Override
     public InputStream decryptWithSymmetricKey(byte[] key, InputStream stream) throws KeyManagerException {
-        return this.decryptWithSymmetricKey(key, stream, DEFAULT_SYMMETRIC_IV, AES_CBC_PKCS7_256);
+        return this.decryptWithSymmetricKey(key, stream, this.getDefaultIV(AES_CBC_PKCS7_256), AES_CBC_PKCS7_256);
     }
 
     @Override
     public InputStream decryptWithSymmetricKey(byte[] key, InputStream stream, SymmetricEncryptionAlgorithm algorithm) throws KeyManagerException {
-        return this.decryptWithSymmetricKey(key, stream, DEFAULT_SYMMETRIC_IV, AES_CBC_PKCS7_256);
+        return this.decryptWithSymmetricKey(key, stream, this.getDefaultIV(AES_CBC_PKCS7_256), AES_CBC_PKCS7_256);
     }
 
     @Override
     public byte[] decryptWithSymmetricKey(byte[] key, byte[] data, byte[] iv) throws KeyManagerException {
         Objects.requireNonNull(key, KEY_CANT_BE_NULL);
 
-        SecretKeySpec keySpec = new SecretKeySpec(key, SYMMETRIC_KEY_ALGORITHM);
+        SecretKeySpec keySpec = new SecretKeySpec(key, SYMMETRIC_KEY_ALGORITHM_AES);
         return this.decryptWithSymmetricKey(keySpec, data, iv, AES_CBC_PKCS7_256);
     }
 
@@ -387,7 +407,7 @@ public class KeyManager implements KeyManagerInterface {
     public InputStream decryptWithSymmetricKey(byte[] key, InputStream stream, byte[] iv) throws KeyManagerException {
         Objects.requireNonNull(key, KEY_CANT_BE_NULL);
 
-        SecretKeySpec keySpec = new SecretKeySpec(key, SYMMETRIC_KEY_ALGORITHM);
+        SecretKeySpec keySpec = new SecretKeySpec(key, SYMMETRIC_KEY_ALGORITHM_AES);
         return this.decryptWithSymmetricKey(keySpec, stream, iv, AES_CBC_PKCS7_256);
     }
 
@@ -395,7 +415,7 @@ public class KeyManager implements KeyManagerInterface {
     public InputStream decryptWithSymmetricKey(byte[] key, InputStream stream, byte[] iv, SymmetricEncryptionAlgorithm algorithm) throws KeyManagerException {
         Objects.requireNonNull(key, KEY_CANT_BE_NULL);
 
-        SecretKeySpec keySpec = new SecretKeySpec(key, SYMMETRIC_KEY_ALGORITHM);
+        SecretKeySpec keySpec = new SecretKeySpec(key, SYMMETRIC_KEY_ALGORITHM_AES);
         return this.decryptWithSymmetricKey(keySpec, stream, iv, algorithm);
     }
 
@@ -436,7 +456,7 @@ public class KeyManager implements KeyManagerInterface {
 
         PKCS5S2ParametersGenerator generator = new PKCS5S2ParametersGenerator(new SHA256Digest());
         generator.init(password, salt, rounds);
-        KeyParameter secretKey = (KeyParameter)generator.generateDerivedMacParameters(PASSWORD_KEY_SIZE);
+        KeyParameter secretKey = (KeyParameter) generator.generateDerivedMacParameters(PASSWORD_KEY_SIZE);
         return secretKey.getKey();
     }
 
@@ -787,6 +807,14 @@ public class KeyManager implements KeyManagerInterface {
         return privateKeyPKCS1;
     }
 
+    protected byte[] getDefaultIV(SymmetricEncryptionAlgorithm algorithm) {
+        if(algorithm == AES_CBC_PKCS7_256) {
+            return DEFAULT_AES_CBC_IV;
+        } else {
+            return DEFAULT_AES_GCM_IV;
+        }
+    }
+
     /**
      * Retrieves a platform specific private key.
      *
@@ -878,7 +906,7 @@ public class KeyManager implements KeyManagerInterface {
         Objects.requireNonNull(name, NAME_CANT_BE_NULL);
 
         byte[] keyBytes = this.getSymmetricKeyData(name);
-        return new SecretKeySpec(keyBytes, 0, keyBytes.length, SYMMETRIC_KEY_ALGORITHM);
+        return new SecretKeySpec(keyBytes, 0, keyBytes.length, SYMMETRIC_KEY_ALGORITHM_AES);
     }
 
     /**
@@ -886,7 +914,7 @@ public class KeyManager implements KeyManagerInterface {
      *
      * @param key       symmetric key reference.
      * @param data      data to encrypt.
-     * @param iv        Initialization vector. Must be 128 bit in size.
+     * @param iv        Initialization vector. Must be 128 bit in size for AES-CBC and 96 for AES-GCM.
      * @param algorithm the symmetric encryption algorithm to use.
      * @return encrypted data.
      * @throws KeyManagerException on failure, which will probably contain an exception from java.security.
@@ -910,13 +938,19 @@ public class KeyManager implements KeyManagerInterface {
         Objects.requireNonNull(key, KEY_CANT_BE_NULL);
         Objects.requireNonNull(iv, "iv can't be null.");
         Objects.requireNonNull(algorithm, ALGORITHM_CANT_BE_NULL);
-        if (algorithm != SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256) {
+        if (algorithm != SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256 && algorithm != SymmetricEncryptionAlgorithm.AES_GCM_256) {
             throw new IllegalArgumentException("Algorithm " + algorithm + " is not supported");
         }
 
         synchronized (KeyManager.class) {
-            Cipher cipher = symmetricKeyCipher.get();
-            cipher.init(mode, key, new IvParameterSpec(iv));
+            Cipher cipher;
+            if (algorithm == SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256) {
+                cipher = aesCbcCipher.get();
+                cipher.init(mode, key, new IvParameterSpec(iv));
+            } else {
+                cipher = aesGcmCipher.get();
+                cipher.init(mode, key, new GCMParameterSpec(SYMMETRIC_KEY_ALGORITHM_TAG_SIZE, iv));
+            }
             return cipher;
         }
     }
@@ -926,7 +960,7 @@ public class KeyManager implements KeyManagerInterface {
      *
      * @param key       symmetric key reference.
      * @param data      data to decrypt.
-     * @param iv        Initialization vector. Must be 128 bit in size.
+     * @param iv        Initialization vector. Must be 128 bit in size for AES-CBC and 96 for AES-GCM.
      * @param algorithm the symmetric decryption algorithm to use.
      * @return decrypted data.
      * @throws KeyManagerException on failure, which will probably contain an exception from java.security.
@@ -951,7 +985,7 @@ public class KeyManager implements KeyManagerInterface {
      *
      * @param key       symmetric key reference.
      * @param stream    data to decrypt.
-     * @param iv        Initialization vector. Must be 128 bit in size.
+     * @param iv        Initialization vector. Must be 128 bit in size for AES-CBC and 96 for AES-GCM.
      * @param algorithm the symmetric decryption algorithm to use.
      * @return decrypted data stream
      * @throws KeyManagerException on failure, which will probably contain an exception from java.security.
