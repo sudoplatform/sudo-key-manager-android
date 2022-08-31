@@ -1,3 +1,8 @@
+/*
+ * Copyright © 2022 Anonyome Labs, Inc. All rights reserved.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 package com.sudoplatform.sudokeymanager;
 
 import android.content.ContentValues;
@@ -17,7 +22,7 @@ import java.util.Set;
 public final class AndroidSQLiteStore extends SQLiteOpenHelper implements StoreInterface {
 
     // Database name,
-    private static final String DATABASE_NAME = "keys.db";
+    public static final String DEFAULT_DATABASE_NAME = "keys.db";
 
     // Database version.
     private static final int DATABASE_VERSION = 1;
@@ -42,7 +47,7 @@ public final class AndroidSQLiteStore extends SQLiteOpenHelper implements StoreI
      * @param context Android app context.
      */
     public AndroidSQLiteStore(Context context) {
-        super(context, DATABASE_NAME, null, DATABASE_VERSION);
+        super(context, DEFAULT_DATABASE_NAME, null, DATABASE_VERSION);
     }
 
     /**
@@ -53,7 +58,20 @@ public final class AndroidSQLiteStore extends SQLiteOpenHelper implements StoreI
      *                     using the same underlying key store.
      */
     public AndroidSQLiteStore(Context context, String keyNamespace) {
-        super(context, DATABASE_NAME, null, DATABASE_VERSION);
+        super(context, DEFAULT_DATABASE_NAME, null, DATABASE_VERSION);
+        this.keyNamespace = keyNamespace;
+    }
+
+    /**
+     * Instantiates AndroidSQLiteStore.
+     *
+     * @param context Android app context.
+     * @param keyNamespace key namespace to use to prevent name clashes when multiple consumers are
+     *                     using the same underlying key store.
+     * @param databaseName database name to use for the SQLite database based key store.
+     */
+    public AndroidSQLiteStore(Context context, String keyNamespace, String databaseName) {
+        super(context, databaseName, null, DATABASE_VERSION);
         this.keyNamespace = keyNamespace;
     }
 
@@ -63,7 +81,7 @@ public final class AndroidSQLiteStore extends SQLiteOpenHelper implements StoreI
      * @param context Android app context.
      */
     public AndroidSQLiteStore(Context context, SecureKeyDelegateInterface secureKeyDelegate) {
-        super(context, DATABASE_NAME, null, DATABASE_VERSION);
+        super(context, DEFAULT_DATABASE_NAME, null, DATABASE_VERSION);
         this.secureKeyDelegate = secureKeyDelegate;
     }
 

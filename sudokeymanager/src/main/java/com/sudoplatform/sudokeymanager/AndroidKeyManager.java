@@ -1,3 +1,8 @@
+/*
+ * Copyright © 2022 Anonyome Labs, Inc. All rights reserved.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 package com.sudoplatform.sudokeymanager;
 
 import static com.sudoplatform.sudokeymanager.KeyManagerInterface.SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256;

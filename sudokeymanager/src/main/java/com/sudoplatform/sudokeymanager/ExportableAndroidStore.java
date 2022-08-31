@@ -1,3 +1,8 @@
+/*
+ * Copyright © 2022 Anonyome Labs, Inc. All rights reserved.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 package com.sudoplatform.sudokeymanager;
 
 import android.content.Context;
@@ -81,6 +86,34 @@ public final class ExportableAndroidStore implements StoreInterface {
 
         this.symmetricKeyAlgorithm = symmetricKeyAlgorithm;
         this.exportableStore = new AndroidSQLiteStore(context, keyNamespace);
+        this.keyNamespace = keyNamespace;
+        try {
+            this.androidKeyStore = KeyStore.getInstance(ANDROID_KEY_STORE);
+            this.androidKeyStore.load(null);
+        } catch (KeyStoreException| CertificateException | NoSuchAlgorithmException | IOException e) {
+            throw new KeyManagerException("Failed to load Android Keystore.", e);
+        }
+    }
+
+    /**
+     * Instantiates a ExportableAndroidStore.
+     *
+     * @param context Android app context.
+     * @param symmetricKeyAlgorithm symmetric key algorithm.
+     * @param keyNamespace key namespace to use to prevent name clashes when multiple consumers are
+     *                     using the same underlying key store.
+     * @param databaseName database name to use for the SQLite database based key store.
+     * @throws KeyManagerException
+     */
+    public ExportableAndroidStore(Context context,
+                                  String symmetricKeyAlgorithm,
+                                  String keyNamespace,
+                                  String databaseName) throws KeyManagerException {
+        Objects.requireNonNull(context, "context can't be null.");
+        Objects.requireNonNull(symmetricKeyAlgorithm, "symmetricKeyAlgorithm can't be null.");
+
+        this.symmetricKeyAlgorithm = symmetricKeyAlgorithm;
+        this.exportableStore = new AndroidSQLiteStore(context, keyNamespace, databaseName);
         this.keyNamespace = keyNamespace;
         try {
             this.androidKeyStore = KeyStore.getInstance(ANDROID_KEY_STORE);
