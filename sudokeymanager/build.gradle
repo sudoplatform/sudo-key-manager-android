@@ -4,10 +4,10 @@ apply plugin: 'kotlin-kapt'
 apply plugin: "org.owasp.dependencycheck"
 
 android {
-    compileSdkVersion 30
+    compileSdkVersion 31
     defaultConfig {
-        minSdkVersion 23
-        targetSdkVersion 30
+        minSdkVersion 24
+        targetSdkVersion 31
         versionCode 1
         versionName "3.7.3"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"

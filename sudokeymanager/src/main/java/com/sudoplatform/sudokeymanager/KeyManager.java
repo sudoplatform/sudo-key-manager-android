@@ -67,6 +67,16 @@ import static com.sudoplatform.sudokeymanager.KeyManagerInterface.SymmetricEncry
 
 public class KeyManager implements KeyManagerInterface {
 
+    /**
+     * Checksum's for each file are generated and are used to create a checksum that is used when
+     * publishing to maven central. In order to retry a failed publish without needing to change any
+     * functionality, we need a way to generate a different checksum for the source code. We can
+     * change the value of this property which will generate a different checksum for publishing
+     * and allow us to retry. The value of `version` doesn't need to be kept up-to-date with the
+     * version of the code.
+     */
+    private static final String VERSION = "5.0.0";
+
     // Constants related to symmetric key crypto.
     static final String SYMMETRIC_KEY_ALGORITHM_AES = "AES";
     static final String AES_BLOCK_MODE_CBC = "CBC";
