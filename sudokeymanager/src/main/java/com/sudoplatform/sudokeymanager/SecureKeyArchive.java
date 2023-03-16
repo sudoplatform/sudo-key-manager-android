@@ -14,6 +14,7 @@ import com.google.gson.annotations.SerializedName;
 import org.spongycastle.util.encoders.Base64;
 
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -48,6 +49,20 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
     private static final int     KEY_VERSION = 1;
 
     private static final Charset UTF8 = Charset.forName("UTF-8");
+
+    enum SecureKeyArchiveType {
+        INSECURE,
+        SECURE;
+
+        @Override
+        public String toString() {
+            switch (this) {
+                case SECURE: return "Secure";
+                case INSECURE: return "Insecure";
+                default: return null;
+            }
+        }
+    }
 
     private KeyManagerInterface keyManager;
     private KeyArchive          keyArchive;
@@ -87,6 +102,11 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
             throw new SecureKeyArchiveException(VERSION_MISMATCH,
                 String.format("Version %d in the archive data is incompatible with expected version %d",
                     keyArchive.Version, ARCHIVE_VERSION));
+        }
+        if (hasNoValue(keyArchive.Type)) {
+            // Default to secure archive to account for archives created prior to introduction of `Type`
+            // These are secured by default because type was introduced with insecure archives feature.
+            keyArchive.Type = SecureKeyArchiveType.SECURE.toString();
         }
     }
 
@@ -229,6 +249,23 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
     }
 
     /**
+     * Archives, in plaintext, the keys loaded into this archive.
+     *
+     * @return encrypted archive data.
+     * @throws SecureKeyArchiveException with one of the following reasons:
+     * {@link SecureKeyArchiveException#ARCHIVE_EMPTY},
+     * {@link SecureKeyArchiveException#FATAL_ERROR}
+     */
+    public byte[] archive() throws SecureKeyArchiveException {
+        if (keys.isEmpty()) {
+            throw new SecureKeyArchiveException(ARCHIVE_EMPTY, "Key archive is empty. Have you called loadKeys?");
+        }
+        String keysJson = gson.toJson(keys);
+        String encodedKeys = new String(Base64.encode(keysJson.getBytes(StandardCharsets.UTF_8)));
+        return this.archiveKeys(encodedKeys, SecureKeyArchiveType.INSECURE);
+    }
+
+    /**
      * Archives and encrypts the keys loaded into this archive.
      *
      * @param password the password to use to encrypt the archive.
@@ -240,18 +277,9 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
      */
     @Override
     public byte[] archive(String password) throws SecureKeyArchiveException {
-        if (hasNoValue(password)) {
-            throw new SecureKeyArchiveException(INVALID_PASSWORD, "Invalid password, it must not be null or empty.");
-        }
         if (keys.isEmpty()) {
             throw new SecureKeyArchiveException(ARCHIVE_EMPTY, "Key archive is empty. Have you called loadKeys?");
         }
-
-        // Set up the key archive container
-        if (keyArchive == null) {
-            keyArchive = new KeyArchive();
-        }
-        keyArchive.Version = ARCHIVE_VERSION;
 
         // Create a symmetric key from the password for encrypting the keys
         byte[] symmetricKey = null;
@@ -262,22 +290,55 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
             keyArchive.Salt = new String(Base64.encode(keyComponents.salt), UTF8);
         } catch (KeyManagerException e) {
             throw new SecureKeyArchiveException(INVALID_PASSWORD,
-                "Unable to create a key from the password", e);
+                    "Unable to create a key from the password", e);
         }
 
         // Convert the array of keys to JSON and then encrypt them
         try {
             String keysJson = gson.toJson(keys);
             byte[] keysEncrypted = keyManager.encryptWithSymmetricKey(symmetricKey, keysJson.getBytes(UTF8));
-            keyArchive.Keys = new String(Base64.encode(keysEncrypted));
+            String encodedKeys = new String(Base64.encode(keysEncrypted));
+            return this.archiveKeys(encodedKeys, SecureKeyArchiveType.SECURE);
         } catch (KeyManagerException e) {
             throw new SecureKeyArchiveException(INVALID_PASSWORD,
-                "Unable to encrypt the keys with the password", e);
+                    "Unable to encrypt the keys with the password", e);
         }
+    }
+
+    /**
+     * Internal function to build a key archive for export
+     * @param keysJson Base64 encoded keys json. Could be encrypted or plaintext.
+     * @param type Archive type, secure or insecure.
+     * @return key archive
+     */
+    private byte[] archiveKeys(String keysJson, SecureKeyArchiveType type) {
+        // Set up the key archive container
+        if (keyArchive == null) {
+            keyArchive = new KeyArchive();
+        }
+
+        // add values to archive
+        keyArchive.Version = ARCHIVE_VERSION;
+        keyArchive.Type = type.toString();
+        keyArchive.Keys = keysJson;
 
         // Convert the entire keyArchive to JSON and base64 encode it.
         String keyArchiveJson = gson.toJson(keyArchive);
         return Base64.encode(keyArchiveJson.getBytes(UTF8));
+    }
+
+    /**
+     * Unarchives plaintext keys in this archive.
+     *
+     * @throws SecureKeyArchiveException with one of the following reasons:
+     * {@link SecureKeyArchiveException#ARCHIVE_EMPTY},
+     * {@link SecureKeyArchiveException#INVALID_ARCHIVE_DATA},
+     * {@link SecureKeyArchiveException#FATAL_ERROR}
+     */
+    public void unarchive() throws SecureKeyArchiveException {
+        byte[] keyData = this.decodeKeyData();
+        String keyArrayJson = new String(keyData);
+        this.loadKeysFromDecodedPayload(keyArrayJson);
     }
 
     /**
@@ -293,20 +354,18 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
      */
     @Override
     public void unarchive(String password) throws SecureKeyArchiveException {
-        if (hasNoValue(password)) {
-            throw new SecureKeyArchiveException(INVALID_PASSWORD, "Invalid password, it must not be null or empty.");
-        }
-        if (hasNoValue(keyArchive.Keys)) {
-            throw new SecureKeyArchiveException(INVALID_ARCHIVE_DATA, "The Keys in the archive are empty");
-        }
+        // Fetch decoded key data first before doing encryption work so this can fail early
+        byte[] keyDataEncrypted = this.decodeKeyData();
+
+        // Validate decryption inputs and generate a key
         if (hasNoValue(keyArchive.Salt) || keyArchive.Rounds < 1) {
             throw new SecureKeyArchiveException(INVALID_ARCHIVE_DATA, "The archive lacks a Salt or Rounds value.");
         }
 
-        byte[] keyDataEncrypted = Base64.decode(keyArchive.Keys);
-        if (hasNoValue(keyDataEncrypted)) {
-            throw new SecureKeyArchiveException(INVALID_ARCHIVE_DATA, "The Keys in the archive, after base64 decoding, are empty");
+        if (hasNoValue(password)) {
+            throw new SecureKeyArchiveException(INVALID_PASSWORD, "Invalid password, it must not be null or empty.");
         }
+
         byte[] salt = Base64.decode(keyArchive.Salt);
 
         byte[] symmetricKey = null;
@@ -314,10 +373,11 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
             symmetricKey = keyManager.createSymmetricKeyFromPassword(password, salt, keyArchive.Rounds);
         } catch (KeyManagerException e) {
             throw new SecureKeyArchiveException(INVALID_PASSWORD,
-                "Unable to create a key from the password", e);
+                    "Unable to create a key from the password", e);
         }
 
         try {
+            // decrypt payload and load keys when finished
             byte[] iv = null;
             if (hasValue(keyArchive.IV)) {
                 iv = Base64.decode(keyArchive.IV);
@@ -329,19 +389,48 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
                 keyDataClear = keyManager.decryptWithSymmetricKey(symmetricKey, keyDataEncrypted);
             }
             String keyArrayJson = new String(keyDataClear);
-            KeyInfo[] keyInfoArray = gson.fromJson(keyArrayJson, KeyInfo[].class);
-            if (keyInfoArray == null) {
-                throw new SecureKeyArchiveException(MALFORMED_KEYSET_DATA,
-                    "Unable to deserialise decrypted keys from the archive");
-            }
-            keys.clear();
-            for (KeyInfo keyInfo : keyInfoArray) {
-                keyInfo.data = Base64.decode(keyInfo.base64Data);
-                keys.add(keyInfo);
-            }
+            this.loadKeysFromDecodedPayload(keyArrayJson);
         } catch (KeyManagerException e) {
             throw new SecureKeyArchiveException(MALFORMED_KEYSET_DATA,
-                "Unable to decrypt keys from the archive", e);
+                    "Unable to decrypt keys from the archive", e);
+        }
+    }
+
+    /**
+     * Internal function to decode and validate keys in the key archive. This is part of multi-step
+     * process to load keys from an archive.
+     * @return
+     * @throws SecureKeyArchiveException
+     */
+    private byte[] decodeKeyData() throws SecureKeyArchiveException {
+        if (hasNoValue(keyArchive.Keys)) {
+            throw new SecureKeyArchiveException(INVALID_ARCHIVE_DATA, "The Keys in the archive are empty");
+        }
+
+        byte[] keyData = Base64.decode(keyArchive.Keys);
+        if (hasNoValue(keyData)) {
+            throw new SecureKeyArchiveException(INVALID_ARCHIVE_DATA, "The Keys in the archive, after base64 decoding, are empty");
+        }
+
+        return keyData;
+    }
+
+    /**
+     * Internal function to load decoded (possibly decrypted) keyarchive json data.
+     * Part of a multi-step process to load keys from an archive.
+     * @param keyArrayJson
+     * @throws SecureKeyArchiveException
+     */
+    private void loadKeysFromDecodedPayload(String keyArrayJson) throws SecureKeyArchiveException {
+        KeyInfo[] keyInfoArray = gson.fromJson(keyArrayJson, KeyInfo[].class);
+        if (keyInfoArray == null) {
+            throw new SecureKeyArchiveException(MALFORMED_KEYSET_DATA,
+                    "Unable to deserialise decrypted keys from the archive");
+        }
+        keys.clear();
+        for (KeyInfo keyInfo : keyInfoArray) {
+            keyInfo.data = Base64.decode(keyInfo.base64Data);
+            keys.add(keyInfo);
         }
     }
 
@@ -456,6 +545,11 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
         return ARCHIVE_VERSION;
     }
 
+    /** @return the type of archive, secure or insecure. */
+    public String getType() {
+        return keyArchive.Type;
+    }
+
     /** The JSON format of the key archive when converted by Gson */
     @Keep
     private static final class KeyArchive {
@@ -465,6 +559,7 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
         String              Keys;
         String              IV;
         int                 Version;
+        String              Type;
     }
 
     /** The JSON format of a single key within the archive when converted by Gson */

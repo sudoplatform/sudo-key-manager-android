@@ -530,6 +530,12 @@ public class KeyManager implements KeyManagerInterface {
     }
 
     @Override
+    public void deletePublicKey(String name) throws KeyManagerException {
+        Objects.requireNonNull(name, NAME_CANT_BE_NULL);
+        this.keyManagerStore.deleteKey(name, KeyType.PUBLIC_KEY);
+    }
+
+    @Override
     public void addPublicKey(byte[] key, String name) throws KeyManagerException {
         this.addPublicKey(key, name, true);
     }

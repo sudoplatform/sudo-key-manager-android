@@ -44,6 +44,16 @@ public interface SecureKeyArchiveInterface {
     byte[] archive(String password) throws SecureKeyArchiveException;
 
     /**
+     * Archives, in plaintext, the keys loaded into this archive.
+     *
+     * @return encrypted archive data.
+     * @throws SecureKeyArchiveException with one of the following reasons:
+     * {@link SecureKeyArchiveException#ARCHIVE_EMPTY},
+     * {@link SecureKeyArchiveException#FATAL_ERROR}
+     */
+    byte[] archive() throws SecureKeyArchiveException;
+
+    /**
      * Decrypts and unarchives the keys in this archive.
      *
      * @param password the password to use to decrypt the archive.
@@ -54,6 +64,16 @@ public interface SecureKeyArchiveInterface {
      * {@link SecureKeyArchiveException#FATAL_ERROR}
      */
     void unarchive(String password) throws SecureKeyArchiveException;
+
+    /**
+     * Unarchives plaintext keys in this archive.
+     *
+     * @throws SecureKeyArchiveException with one of the following reasons:
+     * {@link SecureKeyArchiveException#ARCHIVE_EMPTY},
+     * {@link SecureKeyArchiveException#INVALID_ARCHIVE_DATA},
+     * {@link SecureKeyArchiveException#FATAL_ERROR}
+     */
+    void unarchive() throws SecureKeyArchiveException;
 
     /**
      * Resets the archive by clearing loaded keys and archive data.
@@ -113,4 +133,9 @@ public interface SecureKeyArchiveInterface {
 
     /** @return the archive version. */
     int getVersion();
+
+    /**
+     * @return the type of archive, secure or insecure.
+     */
+    String getType();
 }

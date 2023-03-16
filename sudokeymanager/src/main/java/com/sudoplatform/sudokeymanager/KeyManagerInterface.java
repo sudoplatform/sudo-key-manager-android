@@ -531,6 +531,13 @@ public interface KeyManagerInterface extends AutoCloseable {
     java.security.PublicKey getPublicKey(String name) throws KeyManagerException;
 
     /**
+     * Deletes a public key from the secure store.
+     * @param name of the public key to delete
+     * @throws KeyManagerException if an error occurred while removing the key.
+     */
+    void deletePublicKey(String name) throws KeyManagerException;
+
+    /**
      * Adds a key pair to the secure store.
      *
      * @param privateKey private key to store securely.
