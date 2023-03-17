@@ -135,7 +135,7 @@ public interface SecureKeyArchiveInterface {
     int getVersion();
 
     /**
-     * @return the type of archive, secure or insecure.
+     * @return the type of archive, secure or insecure. Must read archive first by calling `unarchive`, otherwise returns null.
      */
     String getType();
 }

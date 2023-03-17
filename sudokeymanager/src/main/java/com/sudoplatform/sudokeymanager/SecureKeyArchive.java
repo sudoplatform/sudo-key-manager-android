@@ -249,6 +249,15 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
     }
 
     /**
+     * Setup the key archive container if needed.
+     */
+    private void setupKeyArchiveContainer() {
+        if (keyArchive == null) {
+            keyArchive = new KeyArchive();
+        }
+    }
+
+    /**
      * Archives, in plaintext, the keys loaded into this archive.
      *
      * @return encrypted archive data.
@@ -260,6 +269,9 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
         if (keys.isEmpty()) {
             throw new SecureKeyArchiveException(ARCHIVE_EMPTY, "Key archive is empty. Have you called loadKeys?");
         }
+        // Set up the key archive container
+        setupKeyArchiveContainer();
+
         String keysJson = gson.toJson(keys);
         String encodedKeys = new String(Base64.encode(keysJson.getBytes(StandardCharsets.UTF_8)));
         return this.archiveKeys(encodedKeys, SecureKeyArchiveType.INSECURE);
@@ -280,6 +292,8 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
         if (keys.isEmpty()) {
             throw new SecureKeyArchiveException(ARCHIVE_EMPTY, "Key archive is empty. Have you called loadKeys?");
         }
+
+        setupKeyArchiveContainer();
 
         // Create a symmetric key from the password for encrypting the keys
         byte[] symmetricKey = null;
@@ -312,11 +326,6 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
      * @return key archive
      */
     private byte[] archiveKeys(String keysJson, SecureKeyArchiveType type) {
-        // Set up the key archive container
-        if (keyArchive == null) {
-            keyArchive = new KeyArchive();
-        }
-
         // add values to archive
         keyArchive.Version = ARCHIVE_VERSION;
         keyArchive.Type = type.toString();
@@ -529,9 +538,7 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
      */
     @Override
     public void setMetaInfo(Map<String, String> metaInfo) {
-        if (keyArchive == null) {
-            keyArchive = new KeyArchive();
-        }
+        setupKeyArchiveContainer();
         if (keyArchive.MetaInfo == null) {
             keyArchive.MetaInfo = new HashMap<>();
         }
@@ -545,8 +552,15 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
         return ARCHIVE_VERSION;
     }
 
-    /** @return the type of archive, secure or insecure. */
+    /**
+     * @return the type of archive, secure or insecure. Must read archive first by calling `unarchive`, otherwise returns null.
+     */
     public String getType() {
+        if (keyArchive == null) {
+            // type only makes sense in the context of a archive that has been read by
+            // calling unarchive and null seems the best response as there isn't a value.
+            return null;
+        }
         return keyArchive.Type;
     }
 
