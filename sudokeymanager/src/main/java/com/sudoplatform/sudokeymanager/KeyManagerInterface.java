@@ -513,6 +513,16 @@ public interface KeyManagerInterface extends AutoCloseable {
     void addPublicKey(byte[] key, String name, boolean isExportable) throws KeyManagerException;
 
     /**
+     * Add a public key to the secure store from PEM encoded RSAPublicKey.
+     *
+     * @param key public key to store securely.
+     * @param name name of the public key to store.
+     * @param isExportable indicates whether or not the public key is exportable.
+     * @throws KeyManagerException on failure which might contain a java.security exception.
+     */
+    void addPublicKeyFromPEM(String key, String name, boolean isExportable) throws KeyManagerException;
+
+    /**
      * Retrieves a public key from the secure store.
      *
      * @param name name of the public key to retrieve.
@@ -529,6 +539,15 @@ public interface KeyManagerInterface extends AutoCloseable {
      * @throws KeyManagerException if an error occurred while retrieving the key.
      */
     java.security.PublicKey getPublicKey(String name) throws KeyManagerException;
+
+    /**
+     * Retrieves a public key from the secure store as PEM encoded RSAPublicKey.
+     *
+     * @param name name of the public key to retrieve.
+     * @return requested public key or null if the key was not found.
+     * @throws KeyManagerException if an error occurred while retrieving the key.
+     */
+    String getPublicKeyAsPEM(String name) throws KeyManagerException;
 
     /**
      * Deletes a public key from the secure store.

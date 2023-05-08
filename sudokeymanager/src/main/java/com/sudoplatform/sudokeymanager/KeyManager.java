@@ -9,6 +9,8 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.StringReader;
+import java.io.StringWriter;
 import java.math.BigInteger;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
@@ -54,6 +56,9 @@ import org.spongycastle.asn1.x509.SubjectPublicKeyInfo;
 import org.spongycastle.crypto.digests.SHA256Digest;
 import org.spongycastle.crypto.generators.PKCS5S2ParametersGenerator;
 import org.spongycastle.crypto.params.KeyParameter;
+import org.spongycastle.openssl.jcajce.JcaPEMWriter;
+import org.spongycastle.util.io.pem.PemObject;
+import org.spongycastle.util.io.pem.PemReader;
 
 import static com.sudoplatform.sudokeymanager.KeyManagerInterface.PublicKeyEncryptionAlgorithm.RSA_ECB_OAEPSHA1;
 import static com.sudoplatform.sudokeymanager.KeyManagerInterface.PublicKeyEncryptionAlgorithm.RSA_ECB_PKCS1;
@@ -548,6 +553,32 @@ public class KeyManager implements KeyManagerInterface {
         this.keyManagerStore.insertKey(key, name, KeyType.PUBLIC_KEY, isExportable);
     }
 
+    /**
+     * Add a public key to the secure store from PEM encoded RSAPublicKey.
+     *
+     * @param key public key to store securely.
+     * @param name name of the public key to store.
+     * @param isExportable indicates whether or not the public key is exportable.
+     * @throws KeyManagerException on failure which might contain a java.security exception.
+     */
+    public void addPublicKeyFromPEM(String key, String name, boolean isExportable) throws KeyManagerException {
+        Objects.requireNonNull(key, KEY_CANT_BE_NULL);
+        Objects.requireNonNull(name, NAME_CANT_BE_NULL);
+
+        StringReader stringReader = new StringReader(key);
+        PemReader pemReader = new PemReader(stringReader);
+
+        byte[] content;
+        try {
+            PemObject pemObject = pemReader.readPemObject();
+            content = pemObject.getContent();
+        } catch (IOException e) {
+            throw new KeyManagerException("Failed read public key from PEM.", e);
+        }
+
+        this.keyManagerStore.insertKey(content, name, KeyType.PUBLIC_KEY, isExportable);
+    }
+
     @Override
     public byte[] getPublicKeyData(String name) throws KeyManagerException {
         Objects.requireNonNull(name, NAME_CANT_BE_NULL);
@@ -914,6 +945,31 @@ public class KeyManager implements KeyManagerInterface {
             return bytesToPublicKey(publicKeyBytes);
         }
         return null;
+    }
+
+    /**
+     * Retrieves a public key from the secure store as PEM encoded RSAPublicKey.
+     *
+     * @param name name of the public key to retrieve.
+     * @return requested public key or null if the key was not found.
+     * @throws KeyManagerException if an error occurred while retrieving the key.
+     */
+    @Override
+    public String getPublicKeyAsPEM(String name) throws KeyManagerException {
+        byte[] keyData = this.getPublicKeyData(name);
+        if (keyData != null) {
+            try {
+                StringWriter stringWriter = new StringWriter();
+                JcaPEMWriter pemWriter = new JcaPEMWriter(stringWriter);
+                pemWriter.writeObject(new PemObject("RSA PUBLIC KEY", keyData));
+                pemWriter.close();
+                return stringWriter.toString();
+            } catch (IOException e) {
+                throw new KeyManagerException("Failed to convert public key to PEM.", e);
+            }
+        } else {
+            return null;
+        }
     }
 
     /**
