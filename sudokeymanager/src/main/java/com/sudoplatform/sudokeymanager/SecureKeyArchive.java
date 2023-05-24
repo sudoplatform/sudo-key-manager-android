@@ -24,7 +24,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import timber.log.Timber;
+import com.sudoplatform.sudologging.LogLevel;
+import com.sudoplatform.sudologging.Logger;
+import com.sudoplatform.sudologging.AndroidUtilsLogDriver;
 
 import static com.sudoplatform.sudokeymanager.SecureKeyArchiveException.ARCHIVE_EMPTY;
 import static com.sudoplatform.sudokeymanager.SecureKeyArchiveException.FATAL_ERROR;
@@ -33,6 +35,7 @@ import static com.sudoplatform.sudokeymanager.SecureKeyArchiveException.INVALID_
 import static com.sudoplatform.sudokeymanager.SecureKeyArchiveException.MALFORMED_ARCHIVEDATA;
 import static com.sudoplatform.sudokeymanager.SecureKeyArchiveException.MALFORMED_KEYSET_DATA;
 import static com.sudoplatform.sudokeymanager.SecureKeyArchiveException.VERSION_MISMATCH;
+
 
 /**
  * A class that can read, write and process an encrypted archive
@@ -49,6 +52,11 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
     private static final int     KEY_VERSION = 1;
 
     private static final Charset UTF8 = Charset.forName("UTF-8");
+
+    private static final Logger logger = new Logger(
+        "SudoKeyManager",
+        new AndroidUtilsLogDriver(LogLevel.INFO)
+    );
 
     enum SecureKeyArchiveType {
         INSECURE,
@@ -239,7 +247,7 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
     private void addKey(Collection<KeyInfo> keys) throws KeyManagerException {
         for (KeyInfo key : keys) {
             if (key.Type == KeyType.PRIVATE_KEY) {
-                Timber.e("Orphaned private key found in key archive");
+                logger.error("Orphaned private key found in key archive");
             } else if (key.Type == KeyType.PUBLIC_KEY) {
                 keyManager.addPublicKey(key.data, key.Name, true);
             } else {

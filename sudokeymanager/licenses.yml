@@ -10,12 +10,6 @@
   license: The Apache Software License, Version 2.0
   licenseUrl: http://www.apache.org/licenses/LICENSE-2.0.txt
   url: https://developer.android.com/jetpack/androidx/releases/annotation#1.2.0
-- artifact: com.jakewharton.timber:timber:+
-  name: Timber
-  copyrightHolder: Jake Wharton
-  license: The Apache Software License, Version 2.0
-  licenseUrl: http://www.apache.org/licenses/LICENSE-2.0.txt
-  url: https://github.com/JakeWharton/timber
 - artifact: com.madgag.spongycastle:core:+
   name: Spongy Castle
   copyrightHolder: The Legion of the Bouncy Castle Inc.
@@ -64,3 +58,9 @@
   license: Eclipse Public License 1.0
   licenseUrl: http://www.eclipse.org/legal/epl-v10.html
   url: http://junit.org
+- artifact: org.jetbrains.kotlin:kotlin-stdlib-jdk7:+
+  name: Kotlin Stdlib Jdk7
+  copyrightHolder: Jetbrains, Inc.
+  license: The Apache License, Version 2.0
+  licenseUrl: http://www.apache.org/licenses/LICENSE-2.0.txt
+  url: https://kotlinlang.org/
