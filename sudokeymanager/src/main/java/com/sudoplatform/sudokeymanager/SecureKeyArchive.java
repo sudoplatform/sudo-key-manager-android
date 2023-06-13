@@ -101,7 +101,7 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
         if (hasNoValue(archiveData)) {
             throw new SecureKeyArchiveException(ARCHIVE_EMPTY, "Archive data is empty");
         }
-        String keyArchiveJson = new String(Base64.decode(archiveData), UTF8).trim();
+        String keyArchiveJson = new String(archiveData, UTF8);
         keyArchive = gson.fromJson(keyArchiveJson, KeyArchive.class);
         if (keyArchive == null) {
             throw new SecureKeyArchiveException(MALFORMED_ARCHIVEDATA, "Unable to deserialise the JSON of the archive");
@@ -339,9 +339,8 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
         keyArchive.Type = type.toString();
         keyArchive.Keys = keysJson;
 
-        // Convert the entire keyArchive to JSON and base64 encode it.
         String keyArchiveJson = gson.toJson(keyArchive);
-        return Base64.encode(keyArchiveJson.getBytes(UTF8));
+        return keyArchiveJson.getBytes(UTF8);
     }
 
     /**
