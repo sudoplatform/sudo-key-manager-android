@@ -80,7 +80,7 @@ public class KeyManager implements KeyManagerInterface {
      * and allow us to retry. The value of `version` doesn't need to be kept up-to-date with the
      * version of the code.
      */
-    private static final String VERSION = "5.0.0";
+    private static final String VERSION = "6.0.0";
 
     // Constants related to symmetric key crypto.
     static final String SYMMETRIC_KEY_ALGORITHM_AES = "AES";
