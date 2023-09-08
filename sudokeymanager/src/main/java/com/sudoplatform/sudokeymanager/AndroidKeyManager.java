@@ -159,6 +159,43 @@ public final class AndroidKeyManager extends KeyManager implements SecureKeyDele
         }
     }
 
+    @Override
+    public void addKeyPairFromKeyInfo(byte[] privateKey, byte[] publicKey, String name, boolean isExportable) throws KeyManagerException {
+        try {
+            PublicKey publicKeyObj = this.keyInfoBytesToPublicKey(publicKey);
+            PrivateKey privateKeyObj = this.keyInfoBytesToPrivateKey(privateKey);
+            // Android Keystore requires the private key to be accompanied by a certificate. We have
+            // to use BouncyCastle (SpongyCastle in Android land) here since there's no security
+            // provider on Android that supports generating a self-signed certificate.
+            ContentSigner signer = getContentSignerBuilder().build(privateKeyObj);
+
+            // 99 years should be long enough since key lifetime should be less then that.
+            long now = System.currentTimeMillis();
+            long oneDay = TimeUnit.DAYS.toMillis(1);
+            long ninetyNineYears = TimeUnit.DAYS.toMillis(99 * 365L);
+            Date startDate = new Date(now - oneDay);
+            Date endDate = new Date(now + ninetyNineYears);
+
+            X509v3CertificateBuilder builder = new JcaX509v3CertificateBuilder(
+                    new X500Principal(CERTIFICATE_PRINCIPAL_ANONYOME),
+                    BigInteger.ONE,
+                    startDate, endDate,
+                    new X500Principal(CERTIFICATE_PRINCIPAL_ANONYOME),
+                    publicKeyObj);
+
+            X509Certificate certificate = getCertificateConverter().getCertificate(builder.build(signer));
+
+            this.androidKeyStore.setKeyEntry(this.toNamespacedName(name), privateKeyObj, null, new Certificate[] { certificate });
+            // Now store the exportable copies of the keys since we can't extract keys from Android Keystore.
+            this.keyManagerStore.insertKey(this.privateKeyToBytes(privateKeyObj), name, KeyType.PRIVATE_KEY,isExportable);
+            this.keyManagerStore.insertKey(this.publicKeyToBytes(publicKeyObj), name, KeyType.PUBLIC_KEY,isExportable);
+        } catch (CertificateException | OperatorCreationException e) {
+            throw new KeyManagerException("Failed to create a certificate.", e);
+        } catch (GeneralSecurityException e) {
+            throw new KeyManagerException("Failed to add a key pair.", e);
+        }
+    }
+
     private JcaContentSignerBuilder getContentSignerBuilder() {
         JcaContentSignerBuilder signerBuilder = new JcaContentSignerBuilder(CERTIFICATE_SIGNATURE_ALGORITHM);
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {

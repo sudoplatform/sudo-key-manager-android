@@ -578,6 +578,17 @@ public interface KeyManagerInterface extends AutoCloseable {
     void addKeyPair(byte[] privateKey, byte[] publicKey, String name, boolean isExportable) throws KeyManagerException;
 
     /**
+     * Adds a key pair to the secure store from PrivateKeyInfo and SubjectPublicKeyInfo.
+     *
+     * @param privateKey private key to store securely.
+     * @param publicKey public key to store securely.
+     * @param name name of the key pair to store.
+     * @param isExportable indicates whether or not the key pair is exportable.
+     * @throws KeyManagerException on failure which might contain a java.security exception.
+     */
+    void addKeyPairFromKeyInfo(byte[] privateKey, byte[] publicKey, String name, boolean isExportable) throws KeyManagerException;
+
+    /**
      * Deletes a key pair from the secure store.
      *
      * @param name name of the key pair to delete.

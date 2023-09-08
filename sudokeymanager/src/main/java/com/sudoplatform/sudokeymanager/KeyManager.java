@@ -12,6 +12,7 @@ import java.io.InputStream;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.math.BigInteger;
+import java.security.GeneralSecurityException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.KeyFactory;
@@ -26,16 +27,21 @@ import java.security.SecureRandom;
 import java.security.Security;
 import java.security.Signature;
 import java.security.SignatureException;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.KeySpec;
 import java.security.spec.RSAPrivateCrtKeySpec;
 import java.security.spec.RSAPublicKeySpec;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
@@ -48,15 +54,20 @@ import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
+import javax.security.auth.x500.X500Principal;
 
 import org.spongycastle.asn1.ASN1Encodable;
 import org.spongycastle.asn1.ASN1Primitive;
 import org.spongycastle.asn1.pkcs.PrivateKeyInfo;
 import org.spongycastle.asn1.x509.SubjectPublicKeyInfo;
+import org.spongycastle.cert.X509v3CertificateBuilder;
+import org.spongycastle.cert.jcajce.JcaX509v3CertificateBuilder;
 import org.spongycastle.crypto.digests.SHA256Digest;
 import org.spongycastle.crypto.generators.PKCS5S2ParametersGenerator;
 import org.spongycastle.crypto.params.KeyParameter;
 import org.spongycastle.openssl.jcajce.JcaPEMWriter;
+import org.spongycastle.operator.ContentSigner;
+import org.spongycastle.operator.OperatorCreationException;
 import org.spongycastle.util.io.pem.PemObject;
 import org.spongycastle.util.io.pem.PemReader;
 
@@ -598,6 +609,15 @@ public class KeyManager implements KeyManagerInterface {
     }
 
     @Override
+    public void addKeyPairFromKeyInfo(byte[] privateKey, byte[] publicKey, String name, boolean isExportable) throws KeyManagerException {
+        PublicKey publicKeyObj = this.keyInfoBytesToPublicKey(publicKey);
+        PrivateKey privateKeyObj = this.keyInfoBytesToPrivateKey(privateKey);
+
+        this.addPrivateKey(this.privateKeyToBytes(privateKeyObj), name, isExportable);
+        this.addPublicKey(this.publicKeyToBytes(publicKeyObj), name, isExportable);
+    }
+
+    @Override
     public void deleteKeyPair(String name) throws KeyManagerException {
         Objects.requireNonNull(name, NAME_CANT_BE_NULL);
 
@@ -835,6 +855,42 @@ public class KeyManager implements KeyManagerInterface {
     }
 
     /**
+     * Deserializes encoded PrivateKeyInfo bytes to a PrivateKey object.
+     *
+     * @param keyBytes encoded key bytes.
+     * @return private key object.
+     * @throws KeyManagerException on failure, which will probably contain an exception from java.security.
+     */
+    protected PrivateKey keyInfoBytesToPrivateKey(byte[] keyBytes) throws KeyManagerException {
+        Objects.requireNonNull(keyBytes, "keyBytes can't be null.");
+
+        PrivateKey privateKey;
+
+        try {
+            org.spongycastle.asn1.pkcs.PrivateKeyInfo privateKeyInfoKeyInfo = org.spongycastle.asn1.pkcs.PrivateKeyInfo.getInstance(keyBytes);
+            org.spongycastle.asn1.pkcs.RSAPrivateKey pkcs1PrivateKey = org.spongycastle.asn1.pkcs.RSAPrivateKey.getInstance(privateKeyInfoKeyInfo.parsePrivateKey());
+
+            BigInteger modulus = pkcs1PrivateKey.getModulus();
+            BigInteger privateExponent = pkcs1PrivateKey.getPrivateExponent();
+            BigInteger publicExponent = pkcs1PrivateKey.getPublicExponent();
+            BigInteger prime1 = pkcs1PrivateKey.getPrime1();
+            BigInteger prime2 = pkcs1PrivateKey.getPrime2();
+            BigInteger exp1 = pkcs1PrivateKey.getExponent1();
+            BigInteger exp2 = pkcs1PrivateKey.getExponent2();
+            BigInteger coef = pkcs1PrivateKey.getCoefficient();
+
+            RSAPrivateCrtKeySpec keySpec =
+                    new RSAPrivateCrtKeySpec(modulus, publicExponent, privateExponent, prime1, prime2,
+                            exp1, exp2, coef);
+            privateKey = this.keyFactory.generatePrivate(keySpec);
+        } catch (InvalidKeySpecException | IOException e) {
+            throw new KeyManagerException("Failed to create a private key from key bytes.", e);
+        }
+
+        return privateKey;
+    }
+
+    /**
      * Serializes a private key object into a byte array. For compatibility with iOS, we are using
      * PKCS1.
      *
@@ -900,6 +956,32 @@ public class KeyManager implements KeyManagerInterface {
             RSAPublicKeySpec keySpec = new RSAPublicKeySpec(modulus, publicExponent);
             publicKey = this.keyFactory.generatePublic(keySpec);
         } catch (InvalidKeySpecException e) {
+            throw new KeyManagerException("Failed to create a public key from key bytes.", e);
+        }
+
+        return publicKey;
+    }
+
+    /**
+     * Deserializes encoded SubjectPublicKeyInfo bytes to a PublicKey object.
+     *
+     * @param keyBytes encoded key bytes.
+     * @return public key object.
+     * @throws KeyManagerException on failure, which will probably contain an exception from java.security.
+     */
+    protected PublicKey keyInfoBytesToPublicKey(byte[] keyBytes) throws KeyManagerException {
+        Objects.requireNonNull(keyBytes, "keyBytes can't be null.");
+
+        PublicKey publicKey;
+
+        try {
+            org.spongycastle.asn1.x509.SubjectPublicKeyInfo subjectPublicKeyInfo = org.spongycastle.asn1.x509.SubjectPublicKeyInfo.getInstance(keyBytes);
+            org.spongycastle.asn1.pkcs.RSAPublicKey pkcs1PublicKey = org.spongycastle.asn1.pkcs.RSAPublicKey.getInstance(subjectPublicKeyInfo.parsePublicKey());
+            BigInteger modulus = pkcs1PublicKey.getModulus();
+            BigInteger publicExponent = pkcs1PublicKey.getPublicExponent();
+            RSAPublicKeySpec keySpec = new RSAPublicKeySpec(modulus, publicExponent);
+            publicKey = this.keyFactory.generatePublic(keySpec);
+        } catch (InvalidKeySpecException | IOException e) {
             throw new KeyManagerException("Failed to create a public key from key bytes.", e);
         }
 

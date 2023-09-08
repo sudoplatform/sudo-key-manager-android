@@ -13,6 +13,9 @@ import com.google.gson.annotations.SerializedName;
 
 import org.spongycastle.util.encoders.Base64;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -23,6 +26,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.zip.GZIPInputStream;
 
 import com.sudoplatform.sudologging.LogLevel;
 import com.sudoplatform.sudologging.Logger;
@@ -45,17 +49,22 @@ import static com.sudoplatform.sudokeymanager.SecureKeyArchiveException.VERSION_
 
 public class SecureKeyArchive implements SecureKeyArchiveInterface {
 
-    /** Secure key archive format version */
-    private static final int     ARCHIVE_VERSION = 2;
+    /**
+     * Secure key archive format versions.
+     */
+    private static final int ARCHIVE_VERSION_V2 = 2;
+    private static final int ARCHIVE_VERSION_V3 = 3;
 
-    /** Secure key entry format version */
-    private static final int     KEY_VERSION = 1;
+    /**
+     * Secure key entry format version
+     */
+    private static final int KEY_VERSION = 1;
 
     private static final Charset UTF8 = Charset.forName("UTF-8");
 
     private static final Logger logger = new Logger(
-        "SudoKeyManager",
-        new AndroidUtilsLogDriver(LogLevel.INFO)
+            "SudoKeyManager",
+            new AndroidUtilsLogDriver(LogLevel.INFO)
     );
 
     enum SecureKeyArchiveType {
@@ -65,30 +74,36 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
         @Override
         public String toString() {
             switch (this) {
-                case SECURE: return "Secure";
-                case INSECURE: return "Insecure";
-                default: return null;
+                case SECURE:
+                    return "Secure";
+                case INSECURE:
+                    return "Insecure";
+                default:
+                    return null;
             }
         }
     }
 
     private KeyManagerInterface keyManager;
-    private KeyArchive          keyArchive;
-    private final Set<String>   excludedKeys = new HashSet<>();
-    private final Set<KeyInfo>  keys         = new HashSet<>();
-    private final Gson          gson;
+    private KeyArchiveV2 keyArchiveV2;
+    private KeyArchiveV3 keyArchiveV3;
+    private final Set<String> excludedKeys = new HashSet<>();
+    private final Set<KeyInfo> keys = new HashSet<>();
+    private final Gson gson;
+    private final boolean zip;
 
-    private SecureKeyArchive(KeyManagerInterface keyManager) {
+    private SecureKeyArchive(KeyManagerInterface keyManager, boolean zip) {
         this.keyManager = keyManager;
+        this.zip = zip;
 
-        gson = new GsonBuilder()
-            .registerTypeAdapter(KeyType.class, new KeyTypeJsonAdapter())
-            .disableHtmlEscaping()
-            .create();
+        this.gson = new GsonBuilder()
+                .registerTypeAdapter(KeyType.class, new KeyTypeJsonAdapter())
+                .disableHtmlEscaping()
+                .create();
     }
 
-    private SecureKeyArchive(byte[] archiveData, KeyManagerInterface keyManager) throws SecureKeyArchiveException {
-        this(keyManager);
+    private SecureKeyArchive(byte[] archiveData, KeyManagerInterface keyManager, boolean zip) throws SecureKeyArchiveException {
+        this(keyManager, zip);
 
         // Meta info might be needed before the archive is unarchived.
         if (hasValue(archiveData)) {
@@ -96,25 +111,75 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
         }
     }
 
-    /** Reads the base64 data and converts it to JSON and then deserialises it into a KeyArchive */
+    /**
+     * Gzip decompress the input data
+     *
+     * @param zipped zipped data.
+     * @return unzipped data.
+     * @throws IOException
+     */
+    private byte[] unzip(byte[] zipped) throws IOException {
+            byte[] buffer = new byte[1024];
+            ByteArrayOutputStream bos = new ByteArrayOutputStream();
+            ByteArrayInputStream bis = new ByteArrayInputStream(zipped);
+            GZIPInputStream gzis = new GZIPInputStream(bis);
+            int len;
+            while ((len = gzis.read(buffer)) > 0) {
+                bos.write(buffer, 0, len);
+            }
+
+            bis.close();
+            gzis.close();
+            bos.close();
+
+            return bos.toByteArray();
+    }
+
+    /**
+     * Reads the base64 data and converts it to JSON and then deserialises it into a KeyArchive
+     */
     private void loadArchive(byte[] archiveData) throws SecureKeyArchiveException {
         if (hasNoValue(archiveData)) {
             throw new SecureKeyArchiveException(ARCHIVE_EMPTY, "Archive data is empty");
         }
-        String keyArchiveJson = new String(archiveData, UTF8);
-        keyArchive = gson.fromJson(keyArchiveJson, KeyArchive.class);
-        if (keyArchive == null) {
-            throw new SecureKeyArchiveException(MALFORMED_ARCHIVEDATA, "Unable to deserialise the JSON of the archive");
-        }
-        if (keyArchive.Version != ARCHIVE_VERSION) {
-            throw new SecureKeyArchiveException(VERSION_MISMATCH,
-                String.format("Version %d in the archive data is incompatible with expected version %d",
-                    keyArchive.Version, ARCHIVE_VERSION));
-        }
-        if (hasNoValue(keyArchive.Type)) {
-            // Default to secure archive to account for archives created prior to introduction of `Type`
-            // These are secured by default because type was introduced with insecure archives feature.
-            keyArchive.Type = SecureKeyArchiveType.SECURE.toString();
+
+        if(this.getVersion() == ARCHIVE_VERSION_V3) {
+            // V3 archive is always gzip compressed so we need.
+            byte[] unzipped;
+            try {
+                unzipped = this.unzip(archiveData);
+            } catch(IOException e) {
+                throw new SecureKeyArchiveException(MALFORMED_ARCHIVEDATA, "Archive data is not a valid gzipped data: " + e.getMessage());
+            }
+
+            String keyArchiveJson = new String(unzipped, UTF8);
+            keyArchiveV3 = gson.fromJson(keyArchiveJson, KeyArchiveV3.class);
+
+            if (keyArchiveV3 == null) {
+                throw new SecureKeyArchiveException(MALFORMED_ARCHIVEDATA, "Unable to deserialise the JSON of the archive");
+            }
+            if (keyArchiveV3.Version != ARCHIVE_VERSION_V3) {
+                throw new SecureKeyArchiveException(VERSION_MISMATCH,
+                        String.format("Version %d in the archive data is incompatible with expected version %d",
+                                keyArchiveV3.Version, ARCHIVE_VERSION_V3));
+            }
+        } else {
+            String keyArchiveJson = new String(archiveData, UTF8);
+            keyArchiveV2 = gson.fromJson(keyArchiveJson, KeyArchiveV2.class);
+
+            if (keyArchiveV2 == null) {
+                throw new SecureKeyArchiveException(MALFORMED_ARCHIVEDATA, "Unable to deserialise the JSON of the archive");
+            }
+            if (keyArchiveV2.Version != ARCHIVE_VERSION_V2) {
+                throw new SecureKeyArchiveException(VERSION_MISMATCH,
+                        String.format("Version %d in the archive data is incompatible with expected version %d",
+                                keyArchiveV2.Version, ARCHIVE_VERSION_V2));
+            }
+            if (hasNoValue(keyArchiveV2.Type)) {
+                // Default to secure archive to account for archives created prior to introduction of `Type`
+                // These are secured by default because type was introduced with insecure archives feature.
+                keyArchiveV2.Type = SecureKeyArchiveType.SECURE.toString();
+            }
         }
     }
 
@@ -125,7 +190,18 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
      * @return a secure key archive that uses the nominated key manager.
      */
     public static SecureKeyArchiveInterface getInstance(KeyManagerInterface keyManager) {
-        return new SecureKeyArchive(keyManager);
+        return new SecureKeyArchive(keyManager, false);
+    }
+
+    /**
+     * Returns an instance of a SecureKeyArchiveInterface. This method should be used for
+     * creating V3 archive i.e. gzip compressed archive.
+     *
+     * @param keyManager the key manager instance that will be used to encrypt the keys in this archive.
+     * @return a secure key archive that uses the nominated key manager.
+     */
+    public static SecureKeyArchiveInterface getInstanceV3(KeyManagerInterface keyManager) {
+        return new SecureKeyArchive(keyManager, true);
     }
 
     /**
@@ -133,23 +209,41 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
      * encrypted archive data.
      *
      * @param archiveData: encrypted key archive data.
-     * @param keyManager the key manager instance that will be used to encrypt the keys in this archive.
+     * @param keyManager   the key manager instance that will be used to encrypt the keys in this archive.
      * @return a secure key archive that uses the nominated key manager.
      * @throws SecureKeyArchiveException if the loading failed with one of the following reasons:
-     * {@link SecureKeyArchiveException#MALFORMED_ARCHIVEDATA},
-     * {@link SecureKeyArchiveException#FATAL_ERROR}
+     *                                   {@link SecureKeyArchiveException#MALFORMED_ARCHIVEDATA},
+     *                                   {@link SecureKeyArchiveException#FATAL_ERROR}
      */
     public static SecureKeyArchiveInterface getInstance(byte[] archiveData,
                                                         KeyManagerInterface keyManager)
-                                                        throws SecureKeyArchiveException {
-        return new SecureKeyArchive(archiveData, keyManager);
+            throws SecureKeyArchiveException {
+        return new SecureKeyArchive(archiveData, keyManager, false);
+    }
+
+    /**
+     * Returns an instance of a SecureKeyArchiveInterface initaliased with the
+     * encrypted archive data. This method should be used when the input archive
+     * data is V3 archive i.e. gzip compressed.
+     *
+     * @param archiveData: encrypted key archive data.
+     * @param keyManager   the key manager instance that will be used to encrypt the keys in this archive.
+     * @return a secure key archive that uses the nominated key manager.
+     * @throws SecureKeyArchiveException if the loading failed with one of the following reasons:
+     *                                   {@link SecureKeyArchiveException#MALFORMED_ARCHIVEDATA},
+     *                                   {@link SecureKeyArchiveException#FATAL_ERROR}
+     */
+    public static SecureKeyArchiveInterface getV3Instance(byte[] archiveData,
+                                                          KeyManagerInterface keyManager)
+            throws SecureKeyArchiveException {
+        return new SecureKeyArchive(archiveData, keyManager, true);
     }
 
     /**
      * Loads keys from the secure store into the archive.
      *
      * @throws KeyManagerException if the keys could not be exported.
-     * @throws StoreNotExportable if the key store does not permit keys to be exported.
+     * @throws StoreNotExportable  if the key store does not permit keys to be exported.
      */
     @Override
     public void loadKeys() throws KeyManagerException {
@@ -168,8 +262,8 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
      * Saves the keys in this archive to the secure store.
      *
      * @throws SecureKeyArchiveException with one of the following reasons:
-     * {@link SecureKeyArchiveException#ARCHIVE_EMPTY},
-     * {@link SecureKeyArchiveException#FATAL_ERROR}
+     *                                   {@link SecureKeyArchiveException#ARCHIVE_EMPTY},
+     *                                   {@link SecureKeyArchiveException#FATAL_ERROR}
      */
     @Override
     public void saveKeys() throws SecureKeyArchiveException {
@@ -241,7 +335,12 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
         if (publicKey == null || privateKey == null || !publicKey.Name.equals(privateKey.Name)) {
             throw new AssertionError("Programming error, logic inconsistency 3");
         }
-        keyManager.addKeyPair(privateKey.data, publicKey.data, keyName, true);
+
+        if(this.getVersion() == ARCHIVE_VERSION_V2) {
+            keyManager.addKeyPair(privateKey.data, publicKey.data, keyName, true);
+        } else {
+            keyManager.addKeyPairFromKeyInfo(privateKey.data, publicKey.data, keyName, true);
+        }
     }
 
     private void addKey(Collection<KeyInfo> keys) throws KeyManagerException {
@@ -260,8 +359,8 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
      * Setup the key archive container if needed.
      */
     private void setupKeyArchiveContainer() {
-        if (keyArchive == null) {
-            keyArchive = new KeyArchive();
+        if (keyArchiveV2 == null) {
+            keyArchiveV2 = new KeyArchiveV2();
         }
     }
 
@@ -270,8 +369,8 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
      *
      * @return encrypted archive data.
      * @throws SecureKeyArchiveException with one of the following reasons:
-     * {@link SecureKeyArchiveException#ARCHIVE_EMPTY},
-     * {@link SecureKeyArchiveException#FATAL_ERROR}
+     *                                   {@link SecureKeyArchiveException#ARCHIVE_EMPTY},
+     *                                   {@link SecureKeyArchiveException#FATAL_ERROR}
      */
     public byte[] archive() throws SecureKeyArchiveException {
         if (keys.isEmpty()) {
@@ -291,9 +390,9 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
      * @param password the password to use to encrypt the archive.
      * @return encrypted archive data.
      * @throws SecureKeyArchiveException with one of the following reasons:
-     * {@link SecureKeyArchiveException#INVALID_PASSWORD},
-     * {@link SecureKeyArchiveException#ARCHIVE_EMPTY},
-     * {@link SecureKeyArchiveException#FATAL_ERROR}
+     *                                   {@link SecureKeyArchiveException#INVALID_PASSWORD},
+     *                                   {@link SecureKeyArchiveException#ARCHIVE_EMPTY},
+     *                                   {@link SecureKeyArchiveException#FATAL_ERROR}
      */
     @Override
     public byte[] archive(String password) throws SecureKeyArchiveException {
@@ -308,8 +407,8 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
         try {
             KeyComponents keyComponents = keyManager.createSymmetricKeyFromPassword(password);
             symmetricKey = keyComponents.key;
-            keyArchive.Rounds = keyComponents.rounds;
-            keyArchive.Salt = new String(Base64.encode(keyComponents.salt), UTF8);
+            keyArchiveV2.Rounds = keyComponents.rounds;
+            keyArchiveV2.Salt = new String(Base64.encode(keyComponents.salt), UTF8);
         } catch (KeyManagerException e) {
             throw new SecureKeyArchiveException(INVALID_PASSWORD,
                     "Unable to create a key from the password", e);
@@ -329,17 +428,18 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
 
     /**
      * Internal function to build a key archive for export
+     *
      * @param keysJson Base64 encoded keys json. Could be encrypted or plaintext.
-     * @param type Archive type, secure or insecure.
+     * @param type     Archive type, secure or insecure.
      * @return key archive
      */
     private byte[] archiveKeys(String keysJson, SecureKeyArchiveType type) {
         // add values to archive
-        keyArchive.Version = ARCHIVE_VERSION;
-        keyArchive.Type = type.toString();
-        keyArchive.Keys = keysJson;
+        keyArchiveV2.Version = ARCHIVE_VERSION_V2;
+        keyArchiveV2.Type = type.toString();
+        keyArchiveV2.Keys = keysJson;
 
-        String keyArchiveJson = gson.toJson(keyArchive);
+        String keyArchiveJson = gson.toJson(keyArchiveV2);
         return keyArchiveJson.getBytes(UTF8);
     }
 
@@ -347,14 +447,22 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
      * Unarchives plaintext keys in this archive.
      *
      * @throws SecureKeyArchiveException with one of the following reasons:
-     * {@link SecureKeyArchiveException#ARCHIVE_EMPTY},
-     * {@link SecureKeyArchiveException#INVALID_ARCHIVE_DATA},
-     * {@link SecureKeyArchiveException#FATAL_ERROR}
+     *                                   {@link SecureKeyArchiveException#ARCHIVE_EMPTY},
+     *                                   {@link SecureKeyArchiveException#INVALID_ARCHIVE_DATA},
+     *                                   {@link SecureKeyArchiveException#FATAL_ERROR}
      */
     public void unarchive() throws SecureKeyArchiveException {
-        byte[] keyData = this.decodeKeyData();
-        String keyArrayJson = new String(keyData);
-        this.loadKeysFromDecodedPayload(keyArrayJson);
+        if(this.getVersion() == ARCHIVE_VERSION_V2) {
+            byte[] keyData = this.decodeKeyData();
+            String keyArrayJson = new String(keyData);
+            this.loadKeysFromDecodedPayload(keyArrayJson);
+        } else {
+            keys.clear();
+            for (KeyInfo keyInfo : this.keyArchiveV3.Keys) {
+                keyInfo.data = Base64.decode(keyInfo.base64Data);
+                keys.add(keyInfo);
+            }
+        }
     }
 
     /**
@@ -362,11 +470,11 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
      *
      * @param password the password to use to decrypt the archive.
      * @throws SecureKeyArchiveException with one of the following reasons:
-     * {@link SecureKeyArchiveException#INVALID_PASSWORD},
-     * {@link SecureKeyArchiveException#ARCHIVE_EMPTY},
-     * {@link SecureKeyArchiveException#INVALID_ARCHIVE_DATA},
-     * {@link SecureKeyArchiveException#MALFORMED_ARCHIVEDATA},
-     * {@link SecureKeyArchiveException#FATAL_ERROR}
+     *                                   {@link SecureKeyArchiveException#INVALID_PASSWORD},
+     *                                   {@link SecureKeyArchiveException#ARCHIVE_EMPTY},
+     *                                   {@link SecureKeyArchiveException#INVALID_ARCHIVE_DATA},
+     *                                   {@link SecureKeyArchiveException#MALFORMED_ARCHIVEDATA},
+     *                                   {@link SecureKeyArchiveException#FATAL_ERROR}
      */
     @Override
     public void unarchive(String password) throws SecureKeyArchiveException {
@@ -374,7 +482,7 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
         byte[] keyDataEncrypted = this.decodeKeyData();
 
         // Validate decryption inputs and generate a key
-        if (hasNoValue(keyArchive.Salt) || keyArchive.Rounds < 1) {
+        if (hasNoValue(keyArchiveV2.Salt) || keyArchiveV2.Rounds < 1) {
             throw new SecureKeyArchiveException(INVALID_ARCHIVE_DATA, "The archive lacks a Salt or Rounds value.");
         }
 
@@ -382,11 +490,11 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
             throw new SecureKeyArchiveException(INVALID_PASSWORD, "Invalid password, it must not be null or empty.");
         }
 
-        byte[] salt = Base64.decode(keyArchive.Salt);
+        byte[] salt = Base64.decode(keyArchiveV2.Salt);
 
         byte[] symmetricKey = null;
         try {
-            symmetricKey = keyManager.createSymmetricKeyFromPassword(password, salt, keyArchive.Rounds);
+            symmetricKey = keyManager.createSymmetricKeyFromPassword(password, salt, keyArchiveV2.Rounds);
         } catch (KeyManagerException e) {
             throw new SecureKeyArchiveException(INVALID_PASSWORD,
                     "Unable to create a key from the password", e);
@@ -395,8 +503,8 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
         try {
             // decrypt payload and load keys when finished
             byte[] iv = null;
-            if (hasValue(keyArchive.IV)) {
-                iv = Base64.decode(keyArchive.IV);
+            if (hasValue(keyArchiveV2.IV)) {
+                iv = Base64.decode(keyArchiveV2.IV);
             }
             byte[] keyDataClear;
             if (iv != null) {
@@ -415,15 +523,16 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
     /**
      * Internal function to decode and validate keys in the key archive. This is part of multi-step
      * process to load keys from an archive.
+     *
      * @return
      * @throws SecureKeyArchiveException
      */
     private byte[] decodeKeyData() throws SecureKeyArchiveException {
-        if (hasNoValue(keyArchive.Keys)) {
+        if (hasNoValue(keyArchiveV2.Keys)) {
             throw new SecureKeyArchiveException(INVALID_ARCHIVE_DATA, "The Keys in the archive are empty");
         }
 
-        byte[] keyData = Base64.decode(keyArchive.Keys);
+        byte[] keyData = Base64.decode(keyArchiveV2.Keys);
         if (hasNoValue(keyData)) {
             throw new SecureKeyArchiveException(INVALID_ARCHIVE_DATA, "The Keys in the archive, after base64 decoding, are empty");
         }
@@ -434,6 +543,7 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
     /**
      * Internal function to load decoded (possibly decrypted) keyarchive json data.
      * Part of a multi-step process to load keys from an archive.
+     *
      * @param keyArrayJson
      * @throws SecureKeyArchiveException
      */
@@ -456,7 +566,7 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
     @Override
     public void reset() {
         keys.clear();
-        keyArchive = null;
+        keyArchiveV2 = null;
     }
 
     /**
@@ -496,7 +606,9 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
         return keyInfo != null ? keyInfo.data : null;
     }
 
-    /** @return the Key manager used for managing keys and performing cryptographic operations. */
+    /**
+     * @return the Key manager used for managing keys and performing cryptographic operations.
+     */
     @Override
     public KeyManagerInterface getKeyManager() {
         return keyManager;
@@ -512,7 +624,9 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
         this.keyManager = keyManager;
     }
 
-    /** @return the key names to exclude from the archive. */
+    /**
+     * @return the key names to exclude from the archive.
+     */
     @Override
     public Set<String> getExcludedKeys() {
         return Collections.unmodifiableSet(excludedKeys);
@@ -529,13 +643,15 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
         this.excludedKeys.addAll(excludedKeys);
     }
 
-    /** @return the meta-information associated with this archive. */
+    /**
+     * @return the meta-information associated with this archive.
+     */
     @Override
     public Map<String, String> getMetaInfo() {
-        if (keyArchive == null || keyArchive.MetaInfo == null) {
+        if (keyArchiveV2 == null || keyArchiveV2.MetaInfo == null) {
             return Collections.emptyMap();
         }
-        return Collections.unmodifiableMap(keyArchive.MetaInfo);
+        return Collections.unmodifiableMap(keyArchiveV2.MetaInfo);
     }
 
     /**
@@ -546,55 +662,88 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
     @Override
     public void setMetaInfo(Map<String, String> metaInfo) {
         setupKeyArchiveContainer();
-        if (keyArchive.MetaInfo == null) {
-            keyArchive.MetaInfo = new HashMap<>();
+        if (keyArchiveV2.MetaInfo == null) {
+            keyArchiveV2.MetaInfo = new HashMap<>();
         }
-        keyArchive.MetaInfo.clear();
-        keyArchive.MetaInfo.putAll(metaInfo);
+        keyArchiveV2.MetaInfo.clear();
+        keyArchiveV2.MetaInfo.putAll(metaInfo);
     }
 
-    /** @return the archive version. */
+    /**
+     * @return the archive version.
+     */
     @Override
     public int getVersion() {
-        return ARCHIVE_VERSION;
+        if(this.zip) {
+            return ARCHIVE_VERSION_V3;
+        } else {
+            return ARCHIVE_VERSION_V2;
+        }
     }
 
     /**
      * @return the type of archive, secure or insecure. Must read archive first by calling `unarchive`, otherwise returns null.
      */
     public String getType() {
-        if (keyArchive == null) {
-            // type only makes sense in the context of a archive that has been read by
-            // calling unarchive and null seems the best response as there isn't a value.
-            return null;
+        if(this.getVersion() == ARCHIVE_VERSION_V2) {
+            if (keyArchiveV2 == null) {
+                // type only makes sense in the context of a archive that has been read by
+                // calling unarchive and null seems the best response as there isn't a value.
+                return null;
+            }
+            return keyArchiveV2.Type;
+        } else {
+            if (keyArchiveV3 == null) {
+                // type only makes sense in the context of a archive that has been read by
+                // calling unarchive and null seems the best response as there isn't a value.
+                return null;
+            }
+            return keyArchiveV3.Type;
         }
-        return keyArchive.Type;
     }
 
-    /** The JSON format of the key archive when converted by Gson */
+    /**
+     * The JSON format of the key archive when converted by Gson
+     */
     @Keep
-    private static final class KeyArchive {
+    private static final class KeyArchiveV2 {
         Map<String, String> MetaInfo;
-        int                 Rounds;
-        String              Salt;
-        String              Keys;
-        String              IV;
-        int                 Version;
-        String              Type;
+        int Rounds;
+        String Salt;
+        String Keys;
+        String IV;
+        int Version;
+        String Type;
     }
 
-    /** The JSON format of a single key within the archive when converted by Gson */
+    /**
+     * The JSON format of the V3 key archive when converted by Gson
+     */
+    @Keep
+    private static final class KeyArchiveV3 {
+        Map<String, String> MetaInfo;
+        List<KeyInfo> Keys;
+        int Rounds;
+        String Salt;
+        String IV;
+        int Version;
+        String Type;
+    }
+
+    /**
+     * The JSON format of a single key within the archive when converted by Gson
+     */
     @Keep
     private static final class KeyInfo {
-        int     Version;
+        int Version;
         boolean Synchronizable;
-        String  NameSpace;
+        String NameSpace;
         KeyType Type;
-        String  Name;
+        String Name;
         @SerializedName("Data")
-        String  base64Data;
+        String base64Data;
         @SerializedName("data")
-        byte[]  data;
+        byte[] data;
 
         private static KeyInfo make(String name, KeyType keyType, byte[] data) {
             KeyInfo keyInfo = new KeyInfo();
@@ -625,7 +774,7 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder(getClass().getSimpleName());
-        sb.append("{ keyArchive=").append(keyArchive);
+        sb.append("{ keyArchive=").append(keyArchiveV2);
         sb.append(", excludedKeys=").append(excludedKeys);
         sb.append(", keys=").append(keys);
         sb.append('}');
