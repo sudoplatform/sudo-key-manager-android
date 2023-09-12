@@ -5,6 +5,21 @@
  */
 package com.sudoplatform.sudokeymanager;
 
+import static com.sudoplatform.sudokeymanager.KeyManagerInterface.PublicKeyEncryptionAlgorithm.RSA_ECB_OAEPSHA1;
+import static com.sudoplatform.sudokeymanager.KeyManagerInterface.PublicKeyEncryptionAlgorithm.RSA_ECB_PKCS1;
+import static com.sudoplatform.sudokeymanager.KeyManagerInterface.SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256;
+
+import org.spongycastle.asn1.ASN1Encodable;
+import org.spongycastle.asn1.ASN1Primitive;
+import org.spongycastle.asn1.pkcs.PrivateKeyInfo;
+import org.spongycastle.asn1.x509.SubjectPublicKeyInfo;
+import org.spongycastle.crypto.digests.SHA256Digest;
+import org.spongycastle.crypto.generators.PKCS5S2ParametersGenerator;
+import org.spongycastle.crypto.params.KeyParameter;
+import org.spongycastle.openssl.jcajce.JcaPEMWriter;
+import org.spongycastle.util.io.pem.PemObject;
+import org.spongycastle.util.io.pem.PemReader;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -12,7 +27,6 @@ import java.io.InputStream;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.math.BigInteger;
-import java.security.GeneralSecurityException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.KeyFactory;
@@ -27,21 +41,16 @@ import java.security.SecureRandom;
 import java.security.Security;
 import java.security.Signature;
 import java.security.SignatureException;
-import java.security.cert.Certificate;
-import java.security.cert.CertificateException;
-import java.security.cert.X509Certificate;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.KeySpec;
 import java.security.spec.RSAPrivateCrtKeySpec;
 import java.security.spec.RSAPublicKeySpec;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
@@ -54,26 +63,6 @@ import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
-import javax.security.auth.x500.X500Principal;
-
-import org.spongycastle.asn1.ASN1Encodable;
-import org.spongycastle.asn1.ASN1Primitive;
-import org.spongycastle.asn1.pkcs.PrivateKeyInfo;
-import org.spongycastle.asn1.x509.SubjectPublicKeyInfo;
-import org.spongycastle.cert.X509v3CertificateBuilder;
-import org.spongycastle.cert.jcajce.JcaX509v3CertificateBuilder;
-import org.spongycastle.crypto.digests.SHA256Digest;
-import org.spongycastle.crypto.generators.PKCS5S2ParametersGenerator;
-import org.spongycastle.crypto.params.KeyParameter;
-import org.spongycastle.openssl.jcajce.JcaPEMWriter;
-import org.spongycastle.operator.ContentSigner;
-import org.spongycastle.operator.OperatorCreationException;
-import org.spongycastle.util.io.pem.PemObject;
-import org.spongycastle.util.io.pem.PemReader;
-
-import static com.sudoplatform.sudokeymanager.KeyManagerInterface.PublicKeyEncryptionAlgorithm.RSA_ECB_OAEPSHA1;
-import static com.sudoplatform.sudokeymanager.KeyManagerInterface.PublicKeyEncryptionAlgorithm.RSA_ECB_PKCS1;
-import static com.sudoplatform.sudokeymanager.KeyManagerInterface.SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256;
 
 /**
  * Basic KeyManager implementation. It implements key management and cryptographic operations common

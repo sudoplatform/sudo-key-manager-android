@@ -5,12 +5,37 @@
  */
 package com.sudoplatform.sudokeymanager;
 
+import static com.sudoplatform.sudokeymanager.SecureKeyArchiveException.ARCHIVE_EMPTY;
+import static com.sudoplatform.sudokeymanager.SecureKeyArchiveException.FATAL_ERROR;
+import static com.sudoplatform.sudokeymanager.SecureKeyArchiveException.INVALID_ARCHIVE_DATA;
+import static com.sudoplatform.sudokeymanager.SecureKeyArchiveException.INVALID_PASSWORD;
+import static com.sudoplatform.sudokeymanager.SecureKeyArchiveException.MALFORMED_ARCHIVEDATA;
+import static com.sudoplatform.sudokeymanager.SecureKeyArchiveException.MALFORMED_KEYSET_DATA;
+import static com.sudoplatform.sudokeymanager.SecureKeyArchiveException.VERSION_MISMATCH;
+
 import androidx.annotation.Keep;
+import androidx.annotation.NonNull;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonDeserializationContext;
+import com.google.gson.JsonDeserializer;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
 import com.google.gson.annotations.SerializedName;
+import com.google.gson.reflect.TypeToken;
+import com.sudoplatform.sudologging.AndroidUtilsLogDriver;
+import com.sudoplatform.sudologging.LogLevel;
+import com.sudoplatform.sudologging.Logger;
 
+import org.spongycastle.asn1.DERNull;
+import org.spongycastle.asn1.pkcs.PKCSObjectIdentifiers;
+import org.spongycastle.asn1.pkcs.PrivateKeyInfo;
+import org.spongycastle.asn1.pkcs.RSAPrivateKey;
+import org.spongycastle.asn1.pkcs.RSAPublicKey;
+import org.spongycastle.asn1.x509.AlgorithmIdentifier;
+import org.spongycastle.asn1.x509.SubjectPublicKeyInfo;
 import org.spongycastle.util.encoders.Base64;
 
 import java.io.ByteArrayInputStream;
@@ -18,6 +43,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -26,19 +52,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.zip.Deflater;
 import java.util.zip.GZIPInputStream;
-
-import com.sudoplatform.sudologging.LogLevel;
-import com.sudoplatform.sudologging.Logger;
-import com.sudoplatform.sudologging.AndroidUtilsLogDriver;
-
-import static com.sudoplatform.sudokeymanager.SecureKeyArchiveException.ARCHIVE_EMPTY;
-import static com.sudoplatform.sudokeymanager.SecureKeyArchiveException.FATAL_ERROR;
-import static com.sudoplatform.sudokeymanager.SecureKeyArchiveException.INVALID_ARCHIVE_DATA;
-import static com.sudoplatform.sudokeymanager.SecureKeyArchiveException.INVALID_PASSWORD;
-import static com.sudoplatform.sudokeymanager.SecureKeyArchiveException.MALFORMED_ARCHIVEDATA;
-import static com.sudoplatform.sudokeymanager.SecureKeyArchiveException.MALFORMED_KEYSET_DATA;
-import static com.sudoplatform.sudokeymanager.SecureKeyArchiveException.VERSION_MISMATCH;
+import java.util.zip.GZIPOutputStream;
 
 
 /**
@@ -60,7 +76,7 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
      */
     private static final int KEY_VERSION = 1;
 
-    private static final Charset UTF8 = Charset.forName("UTF-8");
+    private static final Charset UTF8 = StandardCharsets.UTF_8;
 
     private static final Logger logger = new Logger(
             "SudoKeyManager",
@@ -85,8 +101,7 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
     }
 
     private KeyManagerInterface keyManager;
-    private KeyArchiveV2 keyArchiveV2;
-    private KeyArchiveV3 keyArchiveV3;
+    private KeyArchive keyArchive;
     private final Set<String> excludedKeys = new HashSet<>();
     private final Set<KeyInfo> keys = new HashSet<>();
     private final Gson gson;
@@ -98,6 +113,7 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
 
         this.gson = new GsonBuilder()
                 .registerTypeAdapter(KeyType.class, new KeyTypeJsonAdapter())
+                .registerTypeAdapter(KeyArchive.class, new KeyArchive.KeyArchiveDeserializer())
                 .disableHtmlEscaping()
                 .create();
     }
@@ -136,6 +152,29 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
     }
 
     /**
+     * Gzip compress the input data
+     *
+     * @param data data to compress.
+     * @return zipped data.
+     * @throws IOException
+     */
+    private byte[] zip(byte[] data) throws IOException {
+        ByteArrayOutputStream bos = new ByteArrayOutputStream(data.length);
+        GZIPOutputStream gzos = new GZIPOutputStream(bos)  {
+            {
+                this.def.setLevel(Deflater.BEST_COMPRESSION);
+            }
+        };
+
+        gzos.write(data);
+
+        gzos.close();
+        bos.close();
+
+        return bos.toByteArray();
+    }
+
+    /**
      * Reads the base64 data and converts it to JSON and then deserialises it into a KeyArchive
      */
     private void loadArchive(byte[] archiveData) throws SecureKeyArchiveException {
@@ -144,7 +183,7 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
         }
 
         if(this.getVersion() == ARCHIVE_VERSION_V3) {
-            // V3 archive is always gzip compressed so we need.
+            // V3 archive is always gzip compressed so we need decompress it first.
             byte[] unzipped;
             try {
                 unzipped = this.unzip(archiveData);
@@ -153,32 +192,32 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
             }
 
             String keyArchiveJson = new String(unzipped, UTF8);
-            keyArchiveV3 = gson.fromJson(keyArchiveJson, KeyArchiveV3.class);
+            keyArchive = gson.fromJson(keyArchiveJson, KeyArchive.class);
 
-            if (keyArchiveV3 == null) {
+            if (keyArchive == null) {
                 throw new SecureKeyArchiveException(MALFORMED_ARCHIVEDATA, "Unable to deserialise the JSON of the archive");
             }
-            if (keyArchiveV3.Version != ARCHIVE_VERSION_V3) {
+            if (keyArchive.Version != ARCHIVE_VERSION_V3) {
                 throw new SecureKeyArchiveException(VERSION_MISMATCH,
                         String.format("Version %d in the archive data is incompatible with expected version %d",
-                                keyArchiveV3.Version, ARCHIVE_VERSION_V3));
+                                keyArchive.Version, ARCHIVE_VERSION_V3));
             }
         } else {
             String keyArchiveJson = new String(archiveData, UTF8);
-            keyArchiveV2 = gson.fromJson(keyArchiveJson, KeyArchiveV2.class);
+            keyArchive = gson.fromJson(keyArchiveJson, KeyArchive.class);
 
-            if (keyArchiveV2 == null) {
+            if (keyArchive == null) {
                 throw new SecureKeyArchiveException(MALFORMED_ARCHIVEDATA, "Unable to deserialise the JSON of the archive");
             }
-            if (keyArchiveV2.Version != ARCHIVE_VERSION_V2) {
+            if (keyArchive.Version != ARCHIVE_VERSION_V2) {
                 throw new SecureKeyArchiveException(VERSION_MISMATCH,
                         String.format("Version %d in the archive data is incompatible with expected version %d",
-                                keyArchiveV2.Version, ARCHIVE_VERSION_V2));
+                                keyArchive.Version, ARCHIVE_VERSION_V2));
             }
-            if (hasNoValue(keyArchiveV2.Type)) {
+            if (hasNoValue(keyArchive.Type)) {
                 // Default to secure archive to account for archives created prior to introduction of `Type`
                 // These are secured by default because type was introduced with insecure archives feature.
-                keyArchiveV2.Type = SecureKeyArchiveType.SECURE.toString();
+                keyArchive.Type = SecureKeyArchiveType.SECURE.toString();
             }
         }
     }
@@ -233,7 +272,7 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
      *                                   {@link SecureKeyArchiveException#MALFORMED_ARCHIVEDATA},
      *                                   {@link SecureKeyArchiveException#FATAL_ERROR}
      */
-    public static SecureKeyArchiveInterface getV3Instance(byte[] archiveData,
+    public static SecureKeyArchiveInterface getInstanceV3(byte[] archiveData,
                                                           KeyManagerInterface keyManager)
             throws SecureKeyArchiveException {
         return new SecureKeyArchive(archiveData, keyManager, true);
@@ -253,7 +292,33 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
                 continue;
             }
             if (hasValue(keyComponents.key)) {
-                keys.add(KeyInfo.make(keyComponents.name, keyComponents.keyType, keyComponents.key));
+                if(this.getVersion() == ARCHIVE_VERSION_V2) {
+                    keys.add(KeyInfo.make(keyComponents.name, keyComponents.keyType, keyComponents.key));
+                } else {
+                    // If we are dealing with v3 archive then we need to convert the
+                    // format of public and private keys since JS SDK uses different
+                    // formats.
+                    byte[] keyData = keyComponents.key;
+                    if(keyComponents.keyType == KeyType.PUBLIC_KEY) {
+                        RSAPublicKey rsaPublicKey = RSAPublicKey.getInstance(keyComponents.key);
+                        AlgorithmIdentifier algorithmIdentifier = new AlgorithmIdentifier(PKCSObjectIdentifiers.rsaEncryption, DERNull.INSTANCE);
+                        try {
+                            SubjectPublicKeyInfo subjectPublicKeyInfo = new SubjectPublicKeyInfo(algorithmIdentifier, rsaPublicKey);
+                            keyData = subjectPublicKeyInfo.getEncoded();
+                        }catch (Exception e) {
+                            throw new KeyManagerException("Failed to convert RSAPublicKey to SubjectPublicKeyInfo: " + e.getMessage());
+                        }                    } else if(keyComponents.keyType == KeyType.PRIVATE_KEY) {
+                        RSAPrivateKey rsaPrivateKey = RSAPrivateKey.getInstance(keyComponents.key);
+                        AlgorithmIdentifier algorithmIdentifier = new AlgorithmIdentifier(PKCSObjectIdentifiers.rsaEncryption, DERNull.INSTANCE);
+                        try {
+                            PrivateKeyInfo privateKeyInfo = new PrivateKeyInfo(algorithmIdentifier, rsaPrivateKey);
+                            keyData = privateKeyInfo.getEncoded();
+                        }catch (Exception e) {
+                            throw new KeyManagerException("Failed to convert RSAPrivateKey to PrivateKeyInfo: " + e.getMessage());
+                        }
+                    }
+                    keys.add(KeyInfo.make(keyComponents.name, keyComponents.keyType, keyData));
+                }
             }
         }
     }
@@ -359,8 +424,8 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
      * Setup the key archive container if needed.
      */
     private void setupKeyArchiveContainer() {
-        if (keyArchiveV2 == null) {
-            keyArchiveV2 = new KeyArchiveV2();
+        if (keyArchive == null) {
+            keyArchive = new KeyArchive();
         }
     }
 
@@ -379,9 +444,25 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
         // Set up the key archive container
         setupKeyArchiveContainer();
 
-        String keysJson = gson.toJson(keys);
-        String encodedKeys = new String(Base64.encode(keysJson.getBytes(StandardCharsets.UTF_8)));
-        return this.archiveKeys(encodedKeys, SecureKeyArchiveType.INSECURE);
+        byte[] data;
+        if(this.getVersion() == ARCHIVE_VERSION_V2) {
+            String keysJson = gson.toJson(keys);
+            String encodedKeys = new String(Base64.encode(keysJson.getBytes(StandardCharsets.UTF_8)));
+            keyArchive.Version = ARCHIVE_VERSION_V2;
+            data = this.archiveKeys(encodedKeys, SecureKeyArchiveType.INSECURE);
+        } else {
+            keyArchive.Version = ARCHIVE_VERSION_V3;
+            keyArchive.Type = SecureKeyArchiveType.INSECURE.toString();
+            keyArchive.KeysAsList = new ArrayList<KeyInfo>(this.keys);
+
+            String keyArchiveJson = gson.toJson(keyArchive);
+            try {
+                data = this.zip(keyArchiveJson.getBytes(UTF8));
+            } catch(IOException e) {
+                throw new SecureKeyArchiveException(MALFORMED_ARCHIVEDATA, "Archive data could not be compressed: " + e.getMessage());
+            }
+        }
+        return data;
     }
 
     /**
@@ -403,26 +484,58 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
         setupKeyArchiveContainer();
 
         // Create a symmetric key from the password for encrypting the keys
-        byte[] symmetricKey = null;
+        byte[] symmetricKey;
         try {
             KeyComponents keyComponents = keyManager.createSymmetricKeyFromPassword(password);
             symmetricKey = keyComponents.key;
-            keyArchiveV2.Rounds = keyComponents.rounds;
-            keyArchiveV2.Salt = new String(Base64.encode(keyComponents.salt), UTF8);
+            keyArchive.Rounds = keyComponents.rounds;
+            keyArchive.Salt = new String(Base64.encode(keyComponents.salt), UTF8);
         } catch (KeyManagerException e) {
             throw new SecureKeyArchiveException(INVALID_PASSWORD,
                     "Unable to create a key from the password", e);
         }
 
-        // Convert the array of keys to JSON and then encrypt them
-        try {
-            String keysJson = gson.toJson(keys);
-            byte[] keysEncrypted = keyManager.encryptWithSymmetricKey(symmetricKey, keysJson.getBytes(UTF8));
-            String encodedKeys = new String(Base64.encode(keysEncrypted));
-            return this.archiveKeys(encodedKeys, SecureKeyArchiveType.SECURE);
-        } catch (KeyManagerException e) {
-            throw new SecureKeyArchiveException(INVALID_PASSWORD,
-                    "Unable to encrypt the keys with the password", e);
+        String keysJson = gson.toJson(keys);
+        byte[] keysData = keysJson.getBytes(UTF8);
+
+        if(this.getVersion() == ARCHIVE_VERSION_V2) {
+            try {
+                byte[] keysEncrypted = keyManager.encryptWithSymmetricKey(symmetricKey, keysData);
+                String encodedKeys = new String(Base64.encode(keysEncrypted));
+                keyArchive.Version = ARCHIVE_VERSION_V2;
+                return this.archiveKeys(encodedKeys, SecureKeyArchiveType.SECURE);
+            } catch (KeyManagerException e) {
+                throw new SecureKeyArchiveException(INVALID_PASSWORD,
+                        "Unable to encrypt the keys with the password", e);
+            }
+        } else {
+            // V3 archive requires you to zip the input to encryption.
+            try {
+                keysData = this.zip(keysData);
+            } catch (IOException e) {
+                throw new SecureKeyArchiveException(MALFORMED_ARCHIVEDATA, "Keys data could not be compressed: " + e.getMessage());
+            }
+
+            try {
+                // Random IV is not necessary for secure archives but JS SDK uses it so we need to
+                // be consistent for interop. The use of non default IV also makes V3 secure archive
+                // not compatible with AES-GCM.
+                byte[] iv = keyManager.createRandomData(16);
+                byte[] keysEncrypted = keyManager.encryptWithSymmetricKey(symmetricKey, keysData, iv);
+                String encodedKeys = new String(Base64.encode(keysEncrypted));
+                keyArchive.Version = ARCHIVE_VERSION_V3;
+                keyArchive.IV = new String(Base64.encode(iv));
+                byte[] archiveData = this.archiveKeys(encodedKeys, SecureKeyArchiveType.SECURE);
+
+                try {
+                    return this.zip(archiveData);
+                } catch (IOException e) {
+                    throw new SecureKeyArchiveException(MALFORMED_ARCHIVEDATA, "Keys data could not be compressed: " + e.getMessage());
+                }
+            } catch (KeyManagerException e) {
+                throw new SecureKeyArchiveException(INVALID_PASSWORD,
+                        "Unable to encrypt the keys with the password", e);
+            }
         }
     }
 
@@ -435,11 +548,10 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
      */
     private byte[] archiveKeys(String keysJson, SecureKeyArchiveType type) {
         // add values to archive
-        keyArchiveV2.Version = ARCHIVE_VERSION_V2;
-        keyArchiveV2.Type = type.toString();
-        keyArchiveV2.Keys = keysJson;
+        keyArchive.Type = type.toString();
+        keyArchive.KeysAsString = keysJson;
 
-        String keyArchiveJson = gson.toJson(keyArchiveV2);
+        String keyArchiveJson = gson.toJson(keyArchive);
         return keyArchiveJson.getBytes(UTF8);
     }
 
@@ -458,7 +570,7 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
             this.loadKeysFromDecodedPayload(keyArrayJson);
         } else {
             keys.clear();
-            for (KeyInfo keyInfo : this.keyArchiveV3.Keys) {
+            for (KeyInfo keyInfo : keyArchive.KeysAsList) {
                 keyInfo.data = Base64.decode(keyInfo.base64Data);
                 keys.add(keyInfo);
             }
@@ -482,7 +594,7 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
         byte[] keyDataEncrypted = this.decodeKeyData();
 
         // Validate decryption inputs and generate a key
-        if (hasNoValue(keyArchiveV2.Salt) || keyArchiveV2.Rounds < 1) {
+        if (hasNoValue(keyArchive.Salt) || keyArchive.Rounds < 1) {
             throw new SecureKeyArchiveException(INVALID_ARCHIVE_DATA, "The archive lacks a Salt or Rounds value.");
         }
 
@@ -490,11 +602,11 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
             throw new SecureKeyArchiveException(INVALID_PASSWORD, "Invalid password, it must not be null or empty.");
         }
 
-        byte[] salt = Base64.decode(keyArchiveV2.Salt);
+        byte[] salt = Base64.decode(keyArchive.Salt);
 
-        byte[] symmetricKey = null;
+        byte[] symmetricKey;
         try {
-            symmetricKey = keyManager.createSymmetricKeyFromPassword(password, salt, keyArchiveV2.Rounds);
+            symmetricKey = keyManager.createSymmetricKeyFromPassword(password, salt, keyArchive.Rounds);
         } catch (KeyManagerException e) {
             throw new SecureKeyArchiveException(INVALID_PASSWORD,
                     "Unable to create a key from the password", e);
@@ -503,8 +615,8 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
         try {
             // decrypt payload and load keys when finished
             byte[] iv = null;
-            if (hasValue(keyArchiveV2.IV)) {
-                iv = Base64.decode(keyArchiveV2.IV);
+            if (hasValue(keyArchive.IV)) {
+                iv = Base64.decode(keyArchive.IV);
             }
             byte[] keyDataClear;
             if (iv != null) {
@@ -512,6 +624,16 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
             } else {
                 keyDataClear = keyManager.decryptWithSymmetricKey(symmetricKey, keyDataEncrypted);
             }
+
+            if(this.getVersion() == ARCHIVE_VERSION_V3) {
+                // V3 encrypted archive is zipped twice so we need to unzip one more time.
+                try {
+                    keyDataClear = this.unzip(keyDataClear);
+                } catch(IOException e) {
+                    throw new SecureKeyArchiveException(MALFORMED_ARCHIVEDATA, "Key data is not a valid gzipped data: " + e.getMessage());
+                }
+            }
+
             String keyArrayJson = new String(keyDataClear);
             this.loadKeysFromDecodedPayload(keyArrayJson);
         } catch (KeyManagerException e) {
@@ -524,15 +646,15 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
      * Internal function to decode and validate keys in the key archive. This is part of multi-step
      * process to load keys from an archive.
      *
-     * @return
+     * @return decoded key.
      * @throws SecureKeyArchiveException
      */
     private byte[] decodeKeyData() throws SecureKeyArchiveException {
-        if (hasNoValue(keyArchiveV2.Keys)) {
+        if (hasNoValue(keyArchive.KeysAsString)) {
             throw new SecureKeyArchiveException(INVALID_ARCHIVE_DATA, "The Keys in the archive are empty");
         }
 
-        byte[] keyData = Base64.decode(keyArchiveV2.Keys);
+        byte[] keyData = Base64.decode(keyArchive.KeysAsString);
         if (hasNoValue(keyData)) {
             throw new SecureKeyArchiveException(INVALID_ARCHIVE_DATA, "The Keys in the archive, after base64 decoding, are empty");
         }
@@ -541,10 +663,10 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
     }
 
     /**
-     * Internal function to load decoded (possibly decrypted) keyarchive json data.
+     * Internal function to load decoded (possibly decrypted) key archive json data.
      * Part of a multi-step process to load keys from an archive.
      *
-     * @param keyArrayJson
+     * @param keyArrayJson A string representing a JSON array of keys.
      * @throws SecureKeyArchiveException
      */
     private void loadKeysFromDecodedPayload(String keyArrayJson) throws SecureKeyArchiveException {
@@ -566,7 +688,7 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
     @Override
     public void reset() {
         keys.clear();
-        keyArchiveV2 = null;
+        keyArchive = null;
     }
 
     /**
@@ -648,10 +770,10 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
      */
     @Override
     public Map<String, String> getMetaInfo() {
-        if (keyArchiveV2 == null || keyArchiveV2.MetaInfo == null) {
+        if (keyArchive == null || keyArchive.MetaInfo == null) {
             return Collections.emptyMap();
         }
-        return Collections.unmodifiableMap(keyArchiveV2.MetaInfo);
+        return Collections.unmodifiableMap(keyArchive.MetaInfo);
     }
 
     /**
@@ -662,11 +784,11 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
     @Override
     public void setMetaInfo(Map<String, String> metaInfo) {
         setupKeyArchiveContainer();
-        if (keyArchiveV2.MetaInfo == null) {
-            keyArchiveV2.MetaInfo = new HashMap<>();
+        if (keyArchive.MetaInfo == null) {
+            keyArchive.MetaInfo = new HashMap<>();
         }
-        keyArchiveV2.MetaInfo.clear();
-        keyArchiveV2.MetaInfo.putAll(metaInfo);
+        keyArchive.MetaInfo.clear();
+        keyArchive.MetaInfo.putAll(metaInfo);
     }
 
     /**
@@ -685,49 +807,57 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
      * @return the type of archive, secure or insecure. Must read archive first by calling `unarchive`, otherwise returns null.
      */
     public String getType() {
-        if(this.getVersion() == ARCHIVE_VERSION_V2) {
-            if (keyArchiveV2 == null) {
-                // type only makes sense in the context of a archive that has been read by
-                // calling unarchive and null seems the best response as there isn't a value.
-                return null;
-            }
-            return keyArchiveV2.Type;
-        } else {
-            if (keyArchiveV3 == null) {
-                // type only makes sense in the context of a archive that has been read by
-                // calling unarchive and null seems the best response as there isn't a value.
-                return null;
-            }
-            return keyArchiveV3.Type;
+        if (keyArchive == null) {
+            // type only makes sense in the context of a archive that has been read by
+            // calling unarchive and null seems the best response as there isn't a value.
+            return null;
         }
+        return keyArchive.Type;
     }
 
     /**
      * The JSON format of the key archive when converted by Gson
      */
     @Keep
-    private static final class KeyArchiveV2 {
+    private static final class KeyArchive {
+        @SerializedName("MetaInfo")
         Map<String, String> MetaInfo;
+        @SerializedName("Rounds")
         int Rounds;
+        @SerializedName("Salt")
         String Salt;
-        String Keys;
+        String KeysAsString;
+        List<KeyInfo> KeysAsList;
+        @SerializedName("IV")
         String IV;
+        @SerializedName("Version")
         int Version;
+        @SerializedName("Type")
         String Type;
-    }
 
-    /**
-     * The JSON format of the V3 key archive when converted by Gson
-     */
-    @Keep
-    private static final class KeyArchiveV3 {
-        Map<String, String> MetaInfo;
-        List<KeyInfo> Keys;
-        int Rounds;
-        String Salt;
-        String IV;
-        int Version;
-        String Type;
+        public static class KeyArchiveDeserializer implements JsonDeserializer<KeyArchive> {
+            @Override
+            public KeyArchive deserialize(JsonElement json, java.lang.reflect.Type typeOfT, JsonDeserializationContext context) throws JsonParseException {
+                KeyArchive keyArchive = new GsonBuilder()
+                        .disableHtmlEscaping()
+                        .create().fromJson(json, KeyArchive.class);
+                JsonObject jsonObject = json.getAsJsonObject();
+
+                if (jsonObject.has("Keys")) {
+                    JsonElement element = jsonObject.get("Keys");
+                    if (element.isJsonArray()) {
+                        keyArchive.KeysAsList = new GsonBuilder()
+                                .registerTypeAdapter(KeyType.class, new KeyTypeJsonAdapter())
+                                .create()
+                                .fromJson(element, new TypeToken<ArrayList<KeyInfo>>() {}.getType());
+                    } else {
+                        keyArchive.KeysAsString = element.getAsString();
+                    }
+                }
+
+                return keyArchive;
+            }
+        }
     }
 
     /**
@@ -756,45 +886,43 @@ public class SecureKeyArchive implements SecureKeyArchiveInterface {
             return keyInfo;
         }
 
+        @NonNull
         @Override
         public String toString() {
-            final StringBuilder sb = new StringBuilder(getClass().getSimpleName());
-            sb.append("{ Version=").append(Version);
-            sb.append(", Synchronizable=").append(Synchronizable);
-            sb.append(", NameSpace='").append(NameSpace).append('\'');
-            sb.append(", Type='").append(Type).append('\'');
-            sb.append(", Name='").append(Name).append('\'');
-            sb.append(", Data='").append(base64Data).append('\'');
-            sb.append(", data.len='").append(data != null ? data.length : 0).append('\'');
-            sb.append('}');
-            return sb.toString();
+            return getClass().getSimpleName() + "{ Version=" + Version +
+                    ", Synchronizable=" + Synchronizable +
+                    ", NameSpace='" + NameSpace + '\'' +
+                    ", Type='" + Type + '\'' +
+                    ", Name='" + Name + '\'' +
+                    ", Data='" + base64Data + '\'' +
+                    ", data.len='" + (data != null ? data.length : 0) + '\'' +
+                    '}';
         }
     }
 
+    @NonNull
     @Override
     public String toString() {
-        final StringBuilder sb = new StringBuilder(getClass().getSimpleName());
-        sb.append("{ keyArchive=").append(keyArchiveV2);
-        sb.append(", excludedKeys=").append(excludedKeys);
-        sb.append(", keys=").append(keys);
-        sb.append('}');
-        return sb.toString();
+        return getClass().getSimpleName() + "{ keyArchive=" + keyArchive +
+                ", excludedKeys=" + excludedKeys +
+                ", keys=" + keys +
+                '}';
     }
 
-    private final boolean hasValue(String s) {
+    private boolean hasValue(String s) {
         // I would have used !TextUtils.isEmpty(s) but it isn't available in unit tests
         return s != null && !s.isEmpty();
     }
 
-    private final boolean hasNoValue(String s) {
+    private boolean hasNoValue(String s) {
         return !hasValue(s);
     }
 
-    private final boolean hasValue(byte[] b) {
+    private boolean hasValue(byte[] b) {
         return b != null && b.length > 0;
     }
 
-    private final boolean hasNoValue(byte[] b) {
+    private boolean hasNoValue(byte[] b) {
         return !hasValue(b);
     }
 }
