@@ -13,7 +13,7 @@ class KeyManagerFactory(private val context: Context) {
     fun createAndroidKeyManager(): KeyManagerInterface {
         val storeInterface = ExportableAndroidStore(
             context,
-            KeyManager.SYMMETRIC_KEY_ALGORITHM_AES
+            KeyManager.SYMMETRIC_KEY_ALGORITHM_AES,
         )
         val androidKeyStore = storeInterface.androidKeyStore
         return AndroidKeyManager(storeInterface, androidKeyStore)
@@ -31,7 +31,7 @@ class KeyManagerFactory(private val context: Context) {
         val storeInterface = ExportableAndroidStore(
             context,
             KeyManager.SYMMETRIC_KEY_ALGORITHM_AES,
-            keyNamespace
+            keyNamespace,
         )
         val androidKeyStore = storeInterface.androidKeyStore
         return AndroidKeyManager(storeInterface, androidKeyStore, keyNamespace)
@@ -51,10 +51,9 @@ class KeyManagerFactory(private val context: Context) {
             context,
             KeyManager.SYMMETRIC_KEY_ALGORITHM_AES,
             keyNamespace,
-            databaseName
+            databaseName,
         )
         val androidKeyStore = storeInterface.androidKeyStore
         return AndroidKeyManager(storeInterface, androidKeyStore, keyNamespace)
     }
-
 }

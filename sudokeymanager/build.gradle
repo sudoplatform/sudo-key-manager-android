@@ -4,13 +4,13 @@ apply plugin: 'kotlin-kapt'
 apply plugin: "org.owasp.dependencycheck"
 
 android {
-    compileSdkVersion 31
+    compileSdk 34
     namespace "com.sudoplatform.sudokeymanager"
     defaultConfig {
         minSdkVersion 26
-        targetSdkVersion 31
+        targetSdkVersion 33
         versionCode 1
-        versionName "6.0.0"
+        versionName "7.0.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         multiDexEnabled true
     }
@@ -36,7 +36,7 @@ android {
     }
 
     kotlinOptions {
-        jvmTarget=17
+        jvmTarget=JavaVersion.VERSION_17.toString()
     }
 
     sourceSets {
@@ -70,7 +70,7 @@ dependencies {
     implementation "androidx.annotation:annotation:1.6.0"
 
     // Sudo Platform
-    implementation "com.sudoplatform:sudologging:3.0.0"
+    implementation "com.sudoplatform:sudologging:4.0.0"
 
     // Unit testing
     testImplementation("junit:junit:4.13.2") {
@@ -164,6 +164,14 @@ task checkLicenseHaveRequiredFields {
     }
 }
 checkLicenses.finalizedBy checkLicenseHaveRequiredFields
+
+// Kotlin Lint
+apply plugin: 'org.jmailen.kotlinter'
+
+kotlinter {
+    ignoreFailures = false
+    reporters = ['checkstyle', 'plain']
+}
 
 ext {
     projectArtifact = 'sudokeymanager'
