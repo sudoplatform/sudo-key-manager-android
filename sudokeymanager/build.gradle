@@ -91,6 +91,7 @@ dependencies {
 
     // timber
     androidTestImplementation "com.jakewharton.timber:timber:5.0.1"
+    androidTestImplementation project(':sudokeymanager')
 }
 
 // Returns a list of `configurations` which should not be scanned for vulnerabilities

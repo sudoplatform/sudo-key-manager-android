@@ -3,14 +3,13 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
-package com.sudoplatform.sudokeymanager;
+package com.sudoplatform.sudokeymanager
 
 /**
  * Interface for encrypting and decrypting key data so keys can be stored securely even if it's
  * stored outside a system keystore.
  */
-public interface SecureKeyDelegateInterface {
-
+interface SecureKeyDelegateInterface {
     /**
      * Encrypts the specified key.
      *
@@ -18,7 +17,8 @@ public interface SecureKeyDelegateInterface {
      * @return encrypted key.
      * @throws KeyManagerException
      */
-    public byte[] encryptKey(byte[] key) throws KeyManagerException;
+    @Throws(KeyManagerException::class)
+    fun encryptKey(key: ByteArray): ByteArray
 
     /**
      * Decrypts the specified key.
@@ -27,6 +27,6 @@ public interface SecureKeyDelegateInterface {
      * @return decrypted key.
      * @throws KeyManagerException
      */
-    public byte[] decryptKey(byte[] key) throws KeyManagerException;
-
+    @Throws(KeyManagerException::class)
+    fun decryptKey(key: ByteArray): ByteArray
 }

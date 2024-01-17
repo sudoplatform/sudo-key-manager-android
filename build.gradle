@@ -52,9 +52,32 @@ task clean(type: Delete) {
 }
 
 allprojects {
+    repositories {
+        mavenLocal()
+        google()
+        mavenCentral()
+        if (internalRepoUsername?.trim()) {
+            maven {
+                name = internalSnapshotRepoName
+                url = internalSnapshotRepoUrl
+                credentials {
+                    username = internalRepoUsername
+                    password = internalRepoPassword
+                }
+            }
+            maven {
+                name = internalReleaseRepoName
+                url = internalReleaseRepoUrl
+                credentials {
+                    username = internalRepoUsername
+                    password = internalRepoPassword
+                }
+            }
+        }
+    }
     gradle.projectsEvaluated {
-        tasks.withType(JavaCompile) {
-            options.compilerArgs << "-Xlint:unchecked" << "-Xlint:deprecation"
+        tasks.withType(Test) {
+            outputs.upToDateWhen { false } // Force gradle to run unit tests even if everything is up to date
         }
     }
 }
