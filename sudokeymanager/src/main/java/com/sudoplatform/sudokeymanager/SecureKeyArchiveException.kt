@@ -14,7 +14,9 @@ class SecureKeyArchiveException @JvmOverloads constructor(
      *
      * @return the reason why this exception was thrown.
      */
-    val reason: Int, message: String?, cause: Throwable? = null
+    val reason: Int,
+    message: String?,
+    cause: Throwable? = null,
 ) : Exception(message, cause) {
 
     constructor(message: String?) : this(NO_REASON, message, null)

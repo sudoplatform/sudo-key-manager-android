@@ -10,7 +10,7 @@ android {
         minSdkVersion 26
         targetSdkVersion 33
         versionCode 1
-        versionName "7.0.0"
+        versionName "7.1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         multiDexEnabled true
     }
@@ -25,11 +25,6 @@ android {
         }
     }
 
-    repositories {
-        google()
-        maven { url "https://plugins.gradle.org/m2/" }
-    }
-
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
@@ -37,6 +32,14 @@ android {
 
     kotlinOptions {
         jvmTarget=JavaVersion.VERSION_17.toString()
+    }
+
+    resourcePrefix 'skm_'
+
+    packagingOptions {
+        pickFirst("META-INF/atomicfu.kotlin_module")
+        pickFirst("META-INF/kotlinx-coroutines-core.kotlin_module")
+        pickFirst("META-INF/sudokeymanager_debug.kotlin_module")
     }
 
     sourceSets {
@@ -126,6 +129,15 @@ afterEvaluate {
             urlBase = "https://anonyome-nist-cve-mirror.s3.amazonaws.com/nvdcve-1.1-%d.json.gz"
             startYear = 2002
             waitTime = 0
+        }
+
+        analyzers {
+            assemblyEnabled = false
+            ossIndex {
+                username = "${ossIndexUsername}"
+                password = "${ossIndexPassword}"
+                warnOnlyOnRemoteErrors = true
+            }
         }
     }
 }
@@ -222,6 +234,25 @@ task jacocoTestReport(type: JacocoReport, dependsOn:"testDebugUnitTest") {
     )
     sourceDirectories.setFrom(files("${buildDir.parent}/sudokeymanager/src/main/java"))
     executionData.setFrom(fileTree(["dir":"$buildDir", "includes":["**/*.exec", "**/*.ec"]]))
+}
+
+// Dokka documentation generation
+apply plugin: 'org.jetbrains.dokka'
+
+dokkaHtml {
+    outputDirectory.set(project.file("$buildDir/javadoc"))
+    dokkaSourceSets {
+        configureEach {
+            jdkVersion.set(8)
+            skipEmptyPackages.set(true)
+            includes.from(files("packages.md"))
+            // Root URL of the generated documentation to link with. The trailing slash is required!
+            externalDocumentationLink {
+                url.set(new URL("https://sudoplatform.github.io/sudo-user-android/sudouser/"))
+                packageListUrl.set(new URL("https://sudoplatform.github.io/sudo-user-android/sudouser/package-list"))
+            }
+        }
+    }
 }
 
 // Sonarqube code analysis

@@ -21,7 +21,7 @@ data class KeyComponents(
 
     /** Key name (aka alias)  */
     var name: String = "",
-    var keyType: KeyType = KeyType.SYMMETRIC_KEY
+    var keyType: KeyType = KeyType.SYMMETRIC_KEY,
 ) {
     override fun toString(): String {
         val clz = this@KeyComponents.javaClass.simpleName

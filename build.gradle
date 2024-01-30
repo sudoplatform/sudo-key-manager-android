@@ -11,6 +11,7 @@ buildscript {
         classpath "org.owasp:dependency-check-gradle:8.2.1"
         classpath "com.cookpad.android.licensetools:license-tools-plugin:1.7.0"
         classpath "org.sonarsource.scanner.gradle:sonarqube-gradle-plugin:4.0.0.2929"
+        classpath "org.jetbrains.dokka:dokka-gradle-plugin:1.8.10"
     }
 }
 
@@ -33,6 +34,18 @@ else {
     ext["internalReleaseRepoUrl"] = ""
     ext["internalReleaseRepoName"] = ""
     ext["sonatypeStagingProfileId"] = ""
+}
+
+if (project.hasProperty("ossIndexUsername")) {
+    ext["ossIndexUsername"] = "$ossIndexUsername"
+} else {
+    ext["ossIndexUsername"] = ""
+}
+
+if (project.hasProperty("ossIndexPassword")) {
+    ext["ossIndexPassword"] = "$ossIndexPassword"
+} else {
+    ext["ossIndexPassword"] = ""
 }
 
 if (project.findProperty("tag") && sonatypeStagingProfileId) {

@@ -77,6 +77,6 @@ object SecurityProviders {
 
     @JvmStatic
     val isSpongyCastleProviderRequired: Boolean
-        get() =// Spongy Castle is not needed on Android O and above.
+        get() = // Spongy Castle is not needed on Android O and above.
             Build.VERSION.SDK_INT < Build.VERSION_CODES.O
 }

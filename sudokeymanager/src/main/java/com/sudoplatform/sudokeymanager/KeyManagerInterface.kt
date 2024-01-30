@@ -17,13 +17,13 @@ interface KeyManagerInterface : AutoCloseable {
     /** The public key encryption algorithms supported by KeyManagerAndroid kit  */
     enum class PublicKeyEncryptionAlgorithm {
         RSA_ECB_PKCS1,
-        RSA_ECB_OAEPSHA1
+        RSA_ECB_OAEPSHA1,
     }
 
     /** The symmetric encryption algorithms supported by KeyManagerAndroid kit  */
     enum class SymmetricEncryptionAlgorithm {
         AES_CBC_PKCS7_256,
-        AES_GCM_256
+        AES_GCM_256,
     }
 
     /**
@@ -157,7 +157,7 @@ interface KeyManagerInterface : AutoCloseable {
     fun encryptWithSymmetricKey(
         name: String,
         data: ByteArray,
-        algorithm: SymmetricEncryptionAlgorithm
+        algorithm: SymmetricEncryptionAlgorithm,
     ): ByteArray
 
     /**
@@ -187,7 +187,7 @@ interface KeyManagerInterface : AutoCloseable {
         name: String,
         data: ByteArray,
         iv: ByteArray,
-        algorithm: SymmetricEncryptionAlgorithm
+        algorithm: SymmetricEncryptionAlgorithm,
     ): ByteArray
 
     /**
@@ -214,7 +214,7 @@ interface KeyManagerInterface : AutoCloseable {
     fun encryptWithSymmetricKey(
         key: ByteArray,
         data: ByteArray,
-        algorithm: SymmetricEncryptionAlgorithm
+        algorithm: SymmetricEncryptionAlgorithm,
     ): ByteArray
 
     /**
@@ -244,7 +244,7 @@ interface KeyManagerInterface : AutoCloseable {
         key: ByteArray,
         data: ByteArray,
         iv: ByteArray,
-        algorithm: SymmetricEncryptionAlgorithm
+        algorithm: SymmetricEncryptionAlgorithm,
     ): ByteArray
 
     /**
@@ -271,7 +271,7 @@ interface KeyManagerInterface : AutoCloseable {
     fun decryptWithSymmetricKey(
         name: String,
         data: ByteArray,
-        algorithm: SymmetricEncryptionAlgorithm
+        algorithm: SymmetricEncryptionAlgorithm,
     ): ByteArray
 
     /**
@@ -298,7 +298,7 @@ interface KeyManagerInterface : AutoCloseable {
     fun decryptWithSymmetricKey(
         name: String,
         stream: InputStream,
-        algorithm: SymmetricEncryptionAlgorithm
+        algorithm: SymmetricEncryptionAlgorithm,
     ): InputStream
 
     /**
@@ -328,7 +328,7 @@ interface KeyManagerInterface : AutoCloseable {
         name: String,
         data: ByteArray,
         iv: ByteArray,
-        algorithm: SymmetricEncryptionAlgorithm
+        algorithm: SymmetricEncryptionAlgorithm,
     ): ByteArray
 
     /**
@@ -358,7 +358,7 @@ interface KeyManagerInterface : AutoCloseable {
         name: String,
         stream: InputStream,
         iv: ByteArray,
-        algorithm: SymmetricEncryptionAlgorithm
+        algorithm: SymmetricEncryptionAlgorithm,
     ): InputStream
 
     /**
@@ -385,7 +385,7 @@ interface KeyManagerInterface : AutoCloseable {
     fun decryptWithSymmetricKey(
         key: ByteArray,
         data: ByteArray,
-        algorithm: SymmetricEncryptionAlgorithm
+        algorithm: SymmetricEncryptionAlgorithm,
     ): ByteArray
 
     /**
@@ -412,7 +412,7 @@ interface KeyManagerInterface : AutoCloseable {
     fun decryptWithSymmetricKey(
         key: ByteArray,
         source: InputStream,
-        algorithm: SymmetricEncryptionAlgorithm
+        algorithm: SymmetricEncryptionAlgorithm,
     ): InputStream
 
     /**
@@ -442,7 +442,7 @@ interface KeyManagerInterface : AutoCloseable {
         key: ByteArray,
         data: ByteArray,
         iv: ByteArray,
-        algorithm: SymmetricEncryptionAlgorithm
+        algorithm: SymmetricEncryptionAlgorithm,
     ): ByteArray
 
     /**
@@ -472,7 +472,7 @@ interface KeyManagerInterface : AutoCloseable {
         key: ByteArray,
         stream: InputStream,
         iv: ByteArray,
-        algorithm: SymmetricEncryptionAlgorithm
+        algorithm: SymmetricEncryptionAlgorithm,
     ): InputStream
 
     /**
@@ -510,7 +510,7 @@ interface KeyManagerInterface : AutoCloseable {
     fun createSymmetricKeyFromPassword(
         password: CharArray,
         salt: ByteArray,
-        rounds: Int
+        rounds: Int,
     ): ByteArray
 
     /**
@@ -526,7 +526,7 @@ interface KeyManagerInterface : AutoCloseable {
     fun createSymmetricKeyFromPassword(
         password: ByteArray,
         salt: ByteArray,
-        rounds: Int
+        rounds: Int,
     ): ByteArray
 
     /**
@@ -694,7 +694,7 @@ interface KeyManagerInterface : AutoCloseable {
         privateKey: ByteArray,
         publicKey: ByteArray,
         name: String,
-        isExportable: Boolean
+        isExportable: Boolean,
     )
 
     /**
@@ -711,7 +711,7 @@ interface KeyManagerInterface : AutoCloseable {
         privateKey: ByteArray,
         publicKey: ByteArray,
         name: String,
-        isExportable: Boolean
+        isExportable: Boolean,
     )
 
     /**
@@ -747,7 +747,7 @@ interface KeyManagerInterface : AutoCloseable {
     fun verifySignatureWithPublicKey(
         name: String,
         data: ByteArray,
-        signature: ByteArray
+        signature: ByteArray,
     ): Boolean
 
     /**
@@ -774,7 +774,7 @@ interface KeyManagerInterface : AutoCloseable {
     fun encryptWithPublicKey(
         name: String,
         data: ByteArray,
-        algorithm: PublicKeyEncryptionAlgorithm
+        algorithm: PublicKeyEncryptionAlgorithm,
     ): ByteArray
 
     /**
@@ -801,7 +801,7 @@ interface KeyManagerInterface : AutoCloseable {
     fun decryptWithPrivateKey(
         name: String,
         data: ByteArray,
-        algorithm: PublicKeyEncryptionAlgorithm
+        algorithm: PublicKeyEncryptionAlgorithm,
     ): ByteArray
 
     /**

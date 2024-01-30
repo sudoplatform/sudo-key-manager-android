@@ -20,12 +20,14 @@ class StoreSchema private constructor() {
         const val COLUMN_NAME_DATA = "DATA"
 
         // Create table.
-        const val CREATE_TABLE = ("CREATE TABLE IF NOT EXISTS " + TABLE_NAME + " ("
-                + COLUMN_NAME_NAME + " TEXT NOT NULL,"
-                + COLUMN_NAME_TYPE + " INT NOT NULL,"
-                + COLUMN_NAME_EXPORTABLE + " INT NOT NULL,"
-                + COLUMN_NAME_DATA + " BLOB NOT NULL,"
-                + "PRIMARY KEY (NAME, TYPE)"
-                + ");")
+        const val CREATE_TABLE = (
+            "CREATE TABLE IF NOT EXISTS " + TABLE_NAME + " (" +
+                COLUMN_NAME_NAME + " TEXT NOT NULL," +
+                COLUMN_NAME_TYPE + " INT NOT NULL," +
+                COLUMN_NAME_EXPORTABLE + " INT NOT NULL," +
+                COLUMN_NAME_DATA + " BLOB NOT NULL," +
+                "PRIMARY KEY (NAME, TYPE)" +
+                ");"
+            )
     }
 }

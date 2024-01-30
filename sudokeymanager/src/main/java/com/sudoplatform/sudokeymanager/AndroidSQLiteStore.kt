@@ -42,7 +42,7 @@ class AndroidSQLiteStore : SQLiteOpenHelper, StoreInterface {
         context,
         DEFAULT_DATABASE_NAME,
         null,
-        DATABASE_VERSION
+        DATABASE_VERSION,
     ) {
         this.keyNamespace = keyNamespace
     }
@@ -59,7 +59,7 @@ class AndroidSQLiteStore : SQLiteOpenHelper, StoreInterface {
         context,
         databaseName,
         null,
-        DATABASE_VERSION
+        DATABASE_VERSION,
     ) {
         this.keyNamespace = keyNamespace
     }
@@ -73,7 +73,7 @@ class AndroidSQLiteStore : SQLiteOpenHelper, StoreInterface {
         context,
         DEFAULT_DATABASE_NAME,
         null,
-        DATABASE_VERSION
+        DATABASE_VERSION,
     ) {
         this.secureKeyDelegate = secureKeyDelegate
     }
@@ -96,7 +96,7 @@ class AndroidSQLiteStore : SQLiteOpenHelper, StoreInterface {
         keyBytes: ByteArray,
         name: String,
         type: KeyType,
-        isExportable: Boolean
+        isExportable: Boolean,
     ) {
         var keyBytes = keyBytes
         Objects.requireNonNull(keyBytes, "keyBytes can't be null.")
@@ -142,7 +142,7 @@ class AndroidSQLiteStore : SQLiteOpenHelper, StoreInterface {
                 selectionArgs,
                 null,
                 null,
-                null
+                null,
             ).use { cursor ->
                 if (cursor.moveToNext()) {
                     keyBytes =
@@ -178,8 +178,8 @@ class AndroidSQLiteStore : SQLiteOpenHelper, StoreInterface {
                     StoreSchema.Keys.TABLE_NAME,
                     StoreSchema.Keys.COLUMN_NAME_NAME + " LIKE ?",
                     arrayOf(
-                        keyNamespace + ".%"
-                    )
+                        keyNamespace + ".%",
+                    ),
                 )
             } else {
                 db.execSQL(SQL_DELETE_ALL)
@@ -213,10 +213,11 @@ class AndroidSQLiteStore : SQLiteOpenHelper, StoreInterface {
                 db.query(
                     StoreSchema.Keys.TABLE_NAME,
                     columns,
-                    StoreSchema.Keys.COLUMN_NAME_NAME + " LIKE ?", arrayOf(keyNamespace + ".%"),
+                    StoreSchema.Keys.COLUMN_NAME_NAME + " LIKE ?",
+                    arrayOf(keyNamespace + ".%"),
                     null,
                     null,
-                    null
+                    null,
                 ).use { cursor ->
                     while (cursor.moveToNext()) {
                         aliases.add(cursor.getString(0).substring((keyNamespace + ".").length))
@@ -234,7 +235,7 @@ class AndroidSQLiteStore : SQLiteOpenHelper, StoreInterface {
                     null,
                     null,
                     null,
-                    null
+                    null,
                 ).use { cursor ->
                     while (cursor.moveToNext()) {
                         aliases.add(cursor.getString(0))

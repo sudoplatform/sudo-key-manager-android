@@ -5,11 +5,8 @@
  */
 package com.sudoplatform.sudokeymanager
 
-import com.sudoplatform.sudokeymanager.KeyManagerException
 import com.sudoplatform.sudokeymanager.KeyManagerInterface.PublicKeyEncryptionAlgorithm
 import com.sudoplatform.sudokeymanager.KeyManagerInterface.SymmetricEncryptionAlgorithm
-import org.spongycastle.asn1.pkcs.PrivateKeyInfo
-import org.spongycastle.asn1.pkcs.RSAPrivateKey
 import org.spongycastle.asn1.pkcs.RSAPublicKey
 import org.spongycastle.asn1.x509.SubjectPublicKeyInfo
 import org.spongycastle.crypto.digests.SHA256Digest
@@ -38,7 +35,6 @@ import java.security.Signature
 import java.security.SignatureException
 import java.security.spec.InvalidKeySpecException
 import java.security.spec.KeySpec
-import java.security.spec.RSAPrivateCrtKeySpec
 import java.security.spec.RSAPublicKeySpec
 import java.util.EnumMap
 import java.util.Objects
@@ -69,6 +65,9 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
     private var keyFactory: KeyFactory? = null
     private var passwordKeyFactory: SecretKeyFactory? = null
 
+    // Key related services
+    protected var keyService: KeyService = KeyService()
+
     /**
      * Instantiates a KeyManager with the specified store.
      *
@@ -88,7 +87,7 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
      *
      * @throws KeyManagerException if key generation failed. Will contain a java.security exception.
      */
-    @Throws(KeyManagerException::class)  // Use of hashing is safe here
+    @Throws(KeyManagerException::class) // Use of hashing is safe here
     protected fun setupKeyGenerators() {
         try {
             keyGenerator = KeyGenerator.getInstance(SYMMETRIC_KEY_ALGORITHM_AES)
@@ -98,7 +97,7 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
             keyFactory = KeyFactory.getInstance(PRIVATE_PUBLIC_KEY_ALGORITHM)
             passwordKeyFactory = SecretKeyFactory.getInstance(PASSWORD_KEY_ALGORITHM)
         } catch (e: NoSuchAlgorithmException) {
-            throw KeyManagerException("Failed to generate a symmetric key.", e)
+            throw KeyManagerException(FAILED_TO_GENERATE_SYMMETRIC_KEY, e)
         }
     }
 
@@ -173,7 +172,7 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
             name,
             data,
             getDefaultIV(SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256),
-            SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256
+            SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256,
         )
     }
 
@@ -181,7 +180,7 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
     override fun encryptWithSymmetricKey(
         name: String,
         data: ByteArray,
-        algorithm: SymmetricEncryptionAlgorithm
+        algorithm: SymmetricEncryptionAlgorithm,
     ): ByteArray {
         return encryptWithSymmetricKey(name, data, getDefaultIV(algorithm), algorithm)
     }
@@ -192,7 +191,7 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
             name,
             data,
             iv,
-            SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256
+            SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256,
         )
     }
 
@@ -201,7 +200,7 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
         name: String,
         data: ByteArray,
         iv: ByteArray,
-        algorithm: SymmetricEncryptionAlgorithm
+        algorithm: SymmetricEncryptionAlgorithm,
     ): ByteArray {
         Objects.requireNonNull(name, NAME_CANT_BE_NULL)
         return this.encryptWithSymmetricKey(getSymmetricKey(name), data, iv, algorithm)
@@ -213,7 +212,7 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
             key,
             data,
             getDefaultIV(SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256),
-            SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256
+            SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256,
         )
     }
 
@@ -221,7 +220,7 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
     override fun encryptWithSymmetricKey(
         key: ByteArray,
         data: ByteArray,
-        algorithm: SymmetricEncryptionAlgorithm
+        algorithm: SymmetricEncryptionAlgorithm,
     ): ByteArray {
         return this.encryptWithSymmetricKey(key, data, getDefaultIV(algorithm), algorithm)
     }
@@ -230,13 +229,13 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
     override fun encryptWithSymmetricKey(
         key: ByteArray,
         data: ByteArray,
-        iv: ByteArray
+        iv: ByteArray,
     ): ByteArray {
         return encryptWithSymmetricKey(
             key,
             data,
             iv,
-            SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256
+            SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256,
         )
     }
 
@@ -245,7 +244,7 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
         key: ByteArray,
         data: ByteArray,
         iv: ByteArray,
-        algorithm: SymmetricEncryptionAlgorithm
+        algorithm: SymmetricEncryptionAlgorithm,
     ): ByteArray {
         Objects.requireNonNull(key, KEY_CANT_BE_NULL)
         val keySpec = SecretKeySpec(key, SYMMETRIC_KEY_ALGORITHM_AES)
@@ -258,7 +257,7 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
             name,
             data,
             getDefaultIV(SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256),
-            SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256
+            SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256,
         )
     }
 
@@ -266,7 +265,7 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
     override fun decryptWithSymmetricKey(
         name: String,
         data: ByteArray,
-        algorithm: SymmetricEncryptionAlgorithm
+        algorithm: SymmetricEncryptionAlgorithm,
     ): ByteArray {
         return this.decryptWithSymmetricKey(name, data, getDefaultIV(algorithm), algorithm)
     }
@@ -276,7 +275,7 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
         name: String,
         data: ByteArray,
         iv: ByteArray,
-        algorithm: SymmetricEncryptionAlgorithm
+        algorithm: SymmetricEncryptionAlgorithm,
     ): ByteArray {
         Objects.requireNonNull(name, KEY_CANT_BE_NULL)
         return decryptWithSymmetricKey(getSymmetricKey(name), data, iv, algorithm)
@@ -288,7 +287,7 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
             name,
             stream,
             getDefaultIV(SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256),
-            SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256
+            SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256,
         )
     }
 
@@ -296,7 +295,7 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
     override fun decryptWithSymmetricKey(
         name: String,
         stream: InputStream,
-        algorithm: SymmetricEncryptionAlgorithm
+        algorithm: SymmetricEncryptionAlgorithm,
     ): InputStream {
         return this.decryptWithSymmetricKey(name, stream, getDefaultIV(algorithm), algorithm)
     }
@@ -308,22 +307,7 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
             getSymmetricKey(name),
             data,
             iv,
-            SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256
-        )
-    }
-
-    @Throws(KeyManagerException::class)
-    override fun decryptWithSymmetricKey(
-        name: String,
-        stream: InputStream,
-        iv: ByteArray
-    ): InputStream {
-        Objects.requireNonNull(name, NAME_CANT_BE_NULL)
-        return this.decryptWithSymmetricKey(
-            getSymmetricKey(name),
-            stream,
-            iv,
-            SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256
+            SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256,
         )
     }
 
@@ -332,7 +316,22 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
         name: String,
         stream: InputStream,
         iv: ByteArray,
-        algorithm: SymmetricEncryptionAlgorithm
+    ): InputStream {
+        Objects.requireNonNull(name, NAME_CANT_BE_NULL)
+        return this.decryptWithSymmetricKey(
+            getSymmetricKey(name),
+            stream,
+            iv,
+            SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256,
+        )
+    }
+
+    @Throws(KeyManagerException::class)
+    override fun decryptWithSymmetricKey(
+        name: String,
+        stream: InputStream,
+        iv: ByteArray,
+        algorithm: SymmetricEncryptionAlgorithm,
     ): InputStream {
         Objects.requireNonNull(name, NAME_CANT_BE_NULL)
         return this.decryptWithSymmetricKey(getSymmetricKey(name), stream, iv, algorithm)
@@ -344,7 +343,7 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
             key,
             data,
             getDefaultIV(SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256),
-            SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256
+            SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256,
         )
     }
 
@@ -352,7 +351,7 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
     override fun decryptWithSymmetricKey(
         key: ByteArray,
         data: ByteArray,
-        algorithm: SymmetricEncryptionAlgorithm
+        algorithm: SymmetricEncryptionAlgorithm,
     ): ByteArray {
         return this.decryptWithSymmetricKey(key, data, getDefaultIV(algorithm), algorithm)
     }
@@ -362,7 +361,7 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
         key: ByteArray,
         data: ByteArray,
         iv: ByteArray,
-        algorithm: SymmetricEncryptionAlgorithm
+        algorithm: SymmetricEncryptionAlgorithm,
     ): ByteArray {
         Objects.requireNonNull(key, KEY_CANT_BE_NULL)
         val keySpec = SecretKeySpec(key, SYMMETRIC_KEY_ALGORITHM_AES)
@@ -375,7 +374,7 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
             key,
             source,
             getDefaultIV(SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256),
-            SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256
+            SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256,
         )
     }
 
@@ -383,13 +382,13 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
     override fun decryptWithSymmetricKey(
         key: ByteArray,
         source: InputStream,
-        algorithm: SymmetricEncryptionAlgorithm
+        algorithm: SymmetricEncryptionAlgorithm,
     ): InputStream {
         return this.decryptWithSymmetricKey(
             key,
             source,
             getDefaultIV(SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256),
-            SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256
+            SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256,
         )
     }
 
@@ -397,7 +396,7 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
     override fun decryptWithSymmetricKey(
         key: ByteArray,
         data: ByteArray,
-        iv: ByteArray
+        iv: ByteArray,
     ): ByteArray {
         Objects.requireNonNull(key, KEY_CANT_BE_NULL)
         val keySpec = SecretKeySpec(key, SYMMETRIC_KEY_ALGORITHM_AES)
@@ -405,23 +404,7 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
             keySpec,
             data,
             iv,
-            SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256
-        )
-    }
-
-    @Throws(KeyManagerException::class)
-    override fun decryptWithSymmetricKey(
-        key: ByteArray,
-        stream: InputStream,
-        iv: ByteArray
-    ): InputStream {
-        Objects.requireNonNull(key, KEY_CANT_BE_NULL)
-        val keySpec = SecretKeySpec(key, SYMMETRIC_KEY_ALGORITHM_AES)
-        return this.decryptWithSymmetricKey(
-            keySpec,
-            stream,
-            iv,
-            SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256
+            SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256,
         )
     }
 
@@ -430,7 +413,23 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
         key: ByteArray,
         stream: InputStream,
         iv: ByteArray,
-        algorithm: SymmetricEncryptionAlgorithm
+    ): InputStream {
+        Objects.requireNonNull(key, KEY_CANT_BE_NULL)
+        val keySpec = SecretKeySpec(key, SYMMETRIC_KEY_ALGORITHM_AES)
+        return this.decryptWithSymmetricKey(
+            keySpec,
+            stream,
+            iv,
+            SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256,
+        )
+    }
+
+    @Throws(KeyManagerException::class)
+    override fun decryptWithSymmetricKey(
+        key: ByteArray,
+        stream: InputStream,
+        iv: ByteArray,
+        algorithm: SymmetricEncryptionAlgorithm,
     ): InputStream {
         Objects.requireNonNull(key, KEY_CANT_BE_NULL)
         val keySpec = SecretKeySpec(key, SYMMETRIC_KEY_ALGORITHM_AES)
@@ -451,7 +450,7 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
     override fun createSymmetricKeyFromPassword(
         password: String,
         salt: ByteArray,
-        rounds: Int
+        rounds: Int,
     ): ByteArray {
         Objects.requireNonNull(password, PASSWORD_CANT_BE_NULL)
         return this.createSymmetricKeyFromPassword(password.toCharArray(), salt, rounds)
@@ -461,7 +460,7 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
     override fun createSymmetricKeyFromPassword(
         password: CharArray,
         salt: ByteArray,
-        rounds: Int
+        rounds: Int,
     ): ByteArray {
         Objects.requireNonNull(password, PASSWORD_CANT_BE_NULL)
         Objects.requireNonNull(salt, "salt can't be null.")
@@ -469,7 +468,7 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
             val keySpec: KeySpec = PBEKeySpec(password, salt, rounds, PASSWORD_KEY_SIZE)
             passwordKeyFactory!!.generateSecret(keySpec)
         } catch (e: InvalidKeySpecException) {
-            throw KeyManagerException("Failed to create password based symmetric key", e)
+            throw KeyManagerException(FAILED_SYMMETRIC_KEY_CREATION, e)
         }
         return secretKey.encoded
     }
@@ -478,7 +477,7 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
     override fun createSymmetricKeyFromPassword(
         password: ByteArray,
         salt: ByteArray,
-        rounds: Int
+        rounds: Int,
     ): ByteArray {
         Objects.requireNonNull(password, PASSWORD_CANT_BE_NULL)
         Objects.requireNonNull(salt, "salt can't be null.")
@@ -488,7 +487,7 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
         return secretKey.key
     }
 
-    @Throws(KeyManagerException::class)  // Use of hashing is safe here
+    @Throws(KeyManagerException::class) // Use of hashing is safe here
     override fun generateHash(data: ByteArray): ByteArray {
         Objects.requireNonNull(data, DATA_CANT_BE_NULL)
         val hash: ByteArray = try {
@@ -498,8 +497,9 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
             throw KeyManagerException(
                 String.format(
                     "Failed to generate a hash because %s was not found.",
-                    MESSAGE_DIGEST_ALGORITHM
-                ), e
+                    MESSAGE_DIGEST_ALGORITHM,
+                ),
+                e,
             )
         }
         return hash
@@ -518,10 +518,10 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
         val privateKey = keyPair.private
         val publicKey = keyPair.public
         this.addKeyPair(
-            privateKeyToBytes(privateKey),
-            publicKeyToBytes(publicKey),
+            keyService.privateKeyToBytes(privateKey),
+            keyService.publicKeyToBytes(publicKey),
             name,
-            isExportable
+            isExportable,
         )
     }
 
@@ -579,7 +579,7 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
             val pemObject = pemReader.readPemObject()
             pemObject.content
         } catch (e: IOException) {
-            throw KeyManagerException("Failed read public key from PEM.", e)
+            throw KeyManagerException(FAILED_PUBLIC_KEY_READ, e)
         }
         keyManagerStore.insertKey(content, name, KeyType.PUBLIC_KEY, isExportable)
     }
@@ -600,7 +600,7 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
         privateKey: ByteArray,
         publicKey: ByteArray,
         name: String,
-        isExportable: Boolean
+        isExportable: Boolean,
     ) {
         this.addPrivateKey(privateKey, name, isExportable)
         this.addPublicKey(publicKey, name, isExportable)
@@ -611,12 +611,12 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
         privateKey: ByteArray,
         publicKey: ByteArray,
         name: String,
-        isExportable: Boolean
+        isExportable: Boolean,
     ) {
-        val publicKeyObj = keyInfoBytesToPublicKey(publicKey)
-        val privateKeyObj = keyInfoBytesToPrivateKey(privateKey)
-        this.addPrivateKey(privateKeyToBytes(privateKeyObj), name, isExportable)
-        this.addPublicKey(publicKeyToBytes(publicKeyObj), name, isExportable)
+        val publicKeyObj = keyService.keyInfoBytesToPublicKey(publicKey)
+        val privateKeyObj = keyService.keyInfoBytesToPrivateKey(privateKey)
+        this.addPrivateKey(keyService.privateKeyToBytes(privateKeyObj), name, isExportable)
+        this.addPublicKey(keyService.publicKeyToBytes(publicKeyObj), name, isExportable)
     }
 
     @Throws(KeyManagerException::class)
@@ -649,17 +649,19 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
                 throw KeyManagerException(
                     String.format(
                         "Failed to generate a signature because %s was not found.",
-                        PRIVATE_PUBLIC_KEY_SIGNATURE_ALGORITHM
-                    ), e
+                        PRIVATE_PUBLIC_KEY_SIGNATURE_ALGORITHM,
+                    ),
+                    e,
                 )
             } catch (e: SignatureException) {
-                throw KeyManagerException("Signature generation failed.", e)
+                throw KeyManagerException(FAILED_SIGNATURE_GENERATION, e)
             } catch (e: InvalidKeyException) {
                 throw KeyManagerException(
                     String.format(
                         "Key \"%s\" cannot be used to generate a signature.",
-                        name
-                    ), e
+                        name,
+                    ),
+                    e,
                 )
             }
         } else {
@@ -672,7 +674,7 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
     override fun verifySignatureWithPublicKey(
         name: String,
         data: ByteArray,
-        signature: ByteArray
+        signature: ByteArray,
     ): Boolean {
         Objects.requireNonNull(name, NAME_CANT_BE_NULL)
         Objects.requireNonNull(data, DATA_CANT_BE_NULL)
@@ -689,17 +691,19 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
                 throw KeyManagerException(
                     String.format(
                         "Failed to verify the signature because %s was not found.",
-                        PRIVATE_PUBLIC_KEY_SIGNATURE_ALGORITHM
-                    ), e
+                        PRIVATE_PUBLIC_KEY_SIGNATURE_ALGORITHM,
+                    ),
+                    e,
                 )
             } catch (e: SignatureException) {
-                throw KeyManagerException("Failed to verify the signature.", e)
+                throw KeyManagerException(FAILED_SIGNATURE_VERIFICATION, e)
             } catch (e: InvalidKeyException) {
                 throw KeyManagerException(
                     String.format(
                         "Key \"%s\" cannot be used to verify a signature.",
-                        name
-                    ), e
+                        name,
+                    ),
+                    e,
                 )
             }
         } else {
@@ -734,7 +738,7 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
     override fun encryptWithPublicKey(
         name: String,
         data: ByteArray,
-        algorithm: PublicKeyEncryptionAlgorithm
+        algorithm: PublicKeyEncryptionAlgorithm,
     ): ByteArray {
         Objects.requireNonNull(name, NAME_CANT_BE_NULL)
         Objects.requireNonNull(data, DATA_CANT_BE_NULL)
@@ -750,15 +754,16 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
                 }
                 encrypted = cipher!!.doFinal(data)
             } catch (e: BadPaddingException) {
-                throw KeyManagerException("Failed to encrypt with a public key.", e)
+                throw KeyManagerException(FAILED_PUBLIC_KEY_ENCRYPTION, e)
             } catch (e: IllegalBlockSizeException) {
-                throw KeyManagerException("Failed to encrypt with a public key.", e)
+                throw KeyManagerException(FAILED_PUBLIC_KEY_ENCRYPTION, e)
             } catch (e: InvalidKeyException) {
                 throw KeyManagerException(
                     String.format(
                         "Key \"%s\" cannot be used to encrypt.",
-                        name
-                    ), e
+                        name,
+                    ),
+                    e,
                 )
             }
         } else {
@@ -793,7 +798,7 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
     override fun decryptWithPrivateKey(
         name: String,
         data: ByteArray,
-        algorithm: PublicKeyEncryptionAlgorithm
+        algorithm: PublicKeyEncryptionAlgorithm,
     ): ByteArray {
         Objects.requireNonNull(name, NAME_CANT_BE_NULL)
         Objects.requireNonNull(data, DATA_CANT_BE_NULL)
@@ -809,9 +814,9 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
                 }
                 decrypted = cipher!!.doFinal(data)
             } catch (e: BadPaddingException) {
-                throw KeyManagerException("Failed to decrypt with a private key.", e)
+                throw KeyManagerException(FAILED_PRIVATE_KEY_DECRYPTION, e)
             } catch (e: IllegalBlockSizeException) {
-                throw KeyManagerException("Failed to decrypt with a private key.", e)
+                throw KeyManagerException(FAILED_PRIVATE_KEY_DECRYPTION, e)
             } catch (e: InvalidKeyException) {
                 throw KeyManagerException("Key \"$name\" cannot be used to decrypt.", e)
             }
@@ -839,93 +844,6 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
         SecurityProviders.removeSpongyCastleProvider()
     }
 
-    /**
-     * Deserializes encoded private key bytes to a PrivateKey object.
-     *
-     * @param keyBytes encoded key bytes.
-     * @return private key object.
-     * @throws KeyManagerException on failure, which will probably contain an exception from java.security.
-     */
-    @Throws(KeyManagerException::class)
-    protected fun bytesToPrivateKey(keyBytes: ByteArray): PrivateKey {
-        Objects.requireNonNull(keyBytes, "keyBytes can't be null.")
-        val privateKey: PrivateKey = try {
-            val pkcs1PrivateKey = RSAPrivateKey.getInstance(keyBytes)
-            val modulus = pkcs1PrivateKey.modulus
-            val privateExponent = pkcs1PrivateKey.privateExponent
-            val publicExponent = pkcs1PrivateKey.publicExponent
-            val prime1 = pkcs1PrivateKey.prime1
-            val prime2 = pkcs1PrivateKey.prime2
-            val exp1 = pkcs1PrivateKey.exponent1
-            val exp2 = pkcs1PrivateKey.exponent2
-            val coef = pkcs1PrivateKey.coefficient
-            val keySpec = RSAPrivateCrtKeySpec(
-                modulus, publicExponent, privateExponent, prime1, prime2,
-                exp1, exp2, coef
-            )
-            keyFactory!!.generatePrivate(keySpec)
-        } catch (e: InvalidKeySpecException) {
-            throw KeyManagerException("Failed to create a private key from key bytes.", e)
-        }
-        return privateKey
-    }
-
-    /**
-     * Deserializes encoded PrivateKeyInfo bytes to a PrivateKey object.
-     *
-     * @param keyBytes encoded key bytes.
-     * @return private key object.
-     * @throws KeyManagerException on failure, which will probably contain an exception from java.security.
-     */
-    @Throws(KeyManagerException::class)
-    protected fun keyInfoBytesToPrivateKey(keyBytes: ByteArray): PrivateKey {
-        Objects.requireNonNull(keyBytes, "keyBytes can't be null.")
-        val privateKey: PrivateKey = try {
-            val privateKeyInfoKeyInfo = PrivateKeyInfo.getInstance(keyBytes)
-            val pkcs1PrivateKey = RSAPrivateKey.getInstance(privateKeyInfoKeyInfo.parsePrivateKey())
-            val modulus = pkcs1PrivateKey.modulus
-            val privateExponent = pkcs1PrivateKey.privateExponent
-            val publicExponent = pkcs1PrivateKey.publicExponent
-            val prime1 = pkcs1PrivateKey.prime1
-            val prime2 = pkcs1PrivateKey.prime2
-            val exp1 = pkcs1PrivateKey.exponent1
-            val exp2 = pkcs1PrivateKey.exponent2
-            val coef = pkcs1PrivateKey.coefficient
-            val keySpec = RSAPrivateCrtKeySpec(
-                modulus, publicExponent, privateExponent, prime1, prime2,
-                exp1, exp2, coef
-            )
-            keyFactory!!.generatePrivate(keySpec)
-        } catch (e: InvalidKeySpecException) {
-            throw KeyManagerException("Failed to create a private key from key bytes.", e)
-        } catch (e: IOException) {
-            throw KeyManagerException("Failed to create a private key from key bytes.", e)
-        }
-        return privateKey
-    }
-
-    /**
-     * Serializes a private key object into a byte array. For compatibility with iOS, we are using
-     * PKCS1.
-     *
-     * @param privateKey private key object.
-     * @return byte array representing PKCS1 DER encoded private key.
-     * @throws KeyManagerException on failure, which will probably contain an exception from java.security.
-     */
-    @Throws(KeyManagerException::class)
-    protected fun privateKeyToBytes(privateKey: PrivateKey): ByteArray {
-        Objects.requireNonNull(privateKey, "privateKey can't be null.")
-        val privateKeyPKCS1: ByteArray = try {
-            val privateKeyInfo = PrivateKeyInfo.getInstance(privateKey.encoded)
-            val privateKeyPKCS1ASN1Encodable = privateKeyInfo.parsePrivateKey()
-            val privateKeyPKCS1ASN1 = privateKeyPKCS1ASN1Encodable.toASN1Primitive()
-            privateKeyPKCS1ASN1.encoded
-        } catch (e: IOException) {
-            throw KeyManagerException("Failed to serialize the private key.", e)
-        }
-        return privateKeyPKCS1
-    }
-
     private fun getDefaultIV(algorithm: SymmetricEncryptionAlgorithm): ByteArray {
         return if (algorithm == SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256) {
             DEFAULT_AES_CBC_IV
@@ -945,7 +863,7 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
     override fun getPrivateKey(name: String): PrivateKey? {
         Objects.requireNonNull(name, NAME_CANT_BE_NULL)
         val privateKeyData = getPrivateKeyData(name) ?: return null
-        return bytesToPrivateKey(privateKeyData)
+        return keyService.bytesToPrivateKey(privateKeyData)
     }
 
     /**
@@ -965,7 +883,7 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
             val keySpec = RSAPublicKeySpec(modulus, publicExponent)
             keyFactory!!.generatePublic(keySpec)
         } catch (e: InvalidKeySpecException) {
-            throw KeyManagerException("Failed to create a public key from key bytes.", e)
+            throw KeyManagerException(FAILED_PUBLIC_KEY_CREATION, e)
         }
         return publicKey
     }
@@ -988,9 +906,9 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
             val keySpec = RSAPublicKeySpec(modulus, publicExponent)
             keyFactory!!.generatePublic(keySpec)
         } catch (e: InvalidKeySpecException) {
-            throw KeyManagerException("Failed to create a public key from key bytes.", e)
+            throw KeyManagerException(FAILED_PUBLIC_KEY_CREATION, e)
         } catch (e: IOException) {
-            throw KeyManagerException("Failed to create a public key from key bytes.", e)
+            throw KeyManagerException(FAILED_PUBLIC_KEY_CREATION, e)
         }
         return publicKey
     }
@@ -1011,7 +929,7 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
             val publicKeyPKCS1ASN1 = publicKeyInfo.parsePublicKey()
             publicKeyPKCS1ASN1.encoded
         } catch (e: IOException) {
-            throw KeyManagerException("Failed to serialize the public key.", e)
+            throw KeyManagerException(FAILED_PUBLIC_KEY_SERIALIZATION, e)
         }
         return publicKeyPKCS1
     }
@@ -1029,7 +947,9 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
         val publicKeyBytes = getPublicKeyData(name)
         return if (publicKeyBytes != null) {
             bytesToPublicKey(publicKeyBytes)
-        } else null
+        } else {
+            null
+        }
     }
 
     /**
@@ -1050,7 +970,7 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
                 pemWriter.close()
                 stringWriter.toString()
             } catch (e: IOException) {
-                throw KeyManagerException("Failed to convert public key to PEM.", e)
+                throw KeyManagerException(FAILED_PUBLIC_KEY_CONVERSION, e)
             }
         } else {
             null
@@ -1086,7 +1006,7 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
         key: SecretKey?,
         data: ByteArray,
         iv: ByteArray,
-        algorithm: SymmetricEncryptionAlgorithm
+        algorithm: SymmetricEncryptionAlgorithm,
     ): ByteArray {
         Objects.requireNonNull(data, DATA_CANT_BE_NULL)
         var encrypted: ByteArray
@@ -1106,7 +1026,7 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
         key: SecretKey?,
         iv: ByteArray,
         mode: Int,
-        algorithm: SymmetricEncryptionAlgorithm
+        algorithm: SymmetricEncryptionAlgorithm,
     ): Cipher {
         Objects.requireNonNull(key, KEY_CANT_BE_NULL)
         Objects.requireNonNull(iv, "iv can't be null.")
@@ -1140,7 +1060,7 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
         key: SecretKey?,
         data: ByteArray,
         iv: ByteArray,
-        algorithm: SymmetricEncryptionAlgorithm
+        algorithm: SymmetricEncryptionAlgorithm,
     ): ByteArray {
         Objects.requireNonNull(data, DATA_CANT_BE_NULL)
         var decrypted: ByteArray
@@ -1170,7 +1090,7 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
         key: SecretKey?,
         stream: InputStream,
         iv: ByteArray,
-        algorithm: SymmetricEncryptionAlgorithm
+        algorithm: SymmetricEncryptionAlgorithm,
     ): InputStream {
         Objects.requireNonNull(stream, "stream can't be null.")
         return try {
@@ -1278,7 +1198,7 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
 
         // Constants related to password key crypto.
         protected const val PASSWORD_KEY_SIZE = 256
-        protected const val PASSWORD_KEY_ALGORITHM = "PBKDF2WithHmacSHA256" //NOSONAR
+        protected const val PASSWORD_KEY_ALGORITHM = "PBKDF2WithHmacSHA256" // NOSONAR
         protected const val PASSWORD_DEFAULT_ROUNDS = 10000
         protected const val PASSWORD_SALT_SIZE = 16
 
@@ -1306,7 +1226,7 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
         private const val CIPHER_CHUNK_SIZE = 16 * 1024
 
         // Errors
-        private const val PASSWORD_CANT_BE_NULL = "password can't be null." //NOSONAR
+        private const val PASSWORD_CANT_BE_NULL = "password can't be null." // NOSONAR
         private const val NAME_CANT_BE_NULL = "name can't be null."
         private const val KEY_CANT_BE_NULL = "key can't be null."
         private const val DATA_CANT_BE_NULL = "data can't be null."
@@ -1315,6 +1235,16 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
         private const val FAILED_TO_DECRYPT = "Failed to decrypt using the symmetric key."
         private const val FAILED_TO_ENCRYPT = "Failed to encrypt using the symmetric key."
         private const val FAILED_TO_GET_CIPHER = "Failed to get Cipher."
+        private const val FAILED_TO_GENERATE_SYMMETRIC_KEY = "Failed to generate a symmetric key."
+        private const val FAILED_SYMMETRIC_KEY_CREATION = "Failed to create password based symmetric key."
+        private const val FAILED_PUBLIC_KEY_READ = "Failed to read public key from PEM."
+        private const val FAILED_SIGNATURE_GENERATION = "Signature generation failed."
+        private const val FAILED_SIGNATURE_VERIFICATION = "Failed to verify the signature."
+        private const val FAILED_PUBLIC_KEY_ENCRYPTION = "Failed to encrypt with a public key."
+        private const val FAILED_PRIVATE_KEY_DECRYPTION = "Failed to decrypt with a private key."
+        private const val FAILED_PUBLIC_KEY_CREATION = "Failed to create a public key from key bytes."
+        private const val FAILED_PUBLIC_KEY_SERIALIZATION = "Failed to serialize the public key."
+        private const val FAILED_PUBLIC_KEY_CONVERSION = "Failed to convert public key to PEM."
 
         // Use of encryption is safe here
         private val aesCbcCipher: ThreadLocal<Cipher> = object : ThreadLocal<Cipher>() {
@@ -1344,13 +1274,13 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
                 override fun initialValue(): Map<PublicKeyEncryptionAlgorithm, Cipher> {
                     return try {
                         val ciphers = EnumMap<PublicKeyEncryptionAlgorithm, Cipher>(
-                            PublicKeyEncryptionAlgorithm::class.java
+                            PublicKeyEncryptionAlgorithm::class.java,
                         )
                         ciphers[PublicKeyEncryptionAlgorithm.RSA_ECB_PKCS1] = Cipher.getInstance(
-                            PRIVATE_PUBLIC_KEY_CIPHER_PKCS1
+                            PRIVATE_PUBLIC_KEY_CIPHER_PKCS1,
                         )
                         ciphers[PublicKeyEncryptionAlgorithm.RSA_ECB_OAEPSHA1] = Cipher.getInstance(
-                            PRIVATE_PUBLIC_KEY_CIPHER_OAEP_SHA1
+                            PRIVATE_PUBLIC_KEY_CIPHER_OAEP_SHA1,
                         )
                         ciphers
                     } catch (e: Exception) {

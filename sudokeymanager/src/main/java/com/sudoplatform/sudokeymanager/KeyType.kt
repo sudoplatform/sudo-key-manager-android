@@ -17,12 +17,11 @@ enum class KeyType(
      *
      * @return integer representation of enum.
      */
-    @JvmField val value: Int
+    @JvmField val value: Int,
 ) {
     PASSWORD(1),
     PRIVATE_KEY(2),
     PUBLIC_KEY(3),
     SYMMETRIC_KEY(4),
-    KEY_PAIR(5)
-
+    KEY_PAIR(5),
 }

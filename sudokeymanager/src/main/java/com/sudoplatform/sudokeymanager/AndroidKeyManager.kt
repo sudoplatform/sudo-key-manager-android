@@ -58,7 +58,7 @@ class AndroidKeyManager : KeyManager, SecureKeyDelegateInterface {
      */
     constructor(
         storeInterface: StoreInterface,
-        androidKeyStore: KeyStore
+        androidKeyStore: KeyStore,
     ) : super(storeInterface) {
         keyManagerStore.setSecureKeyDelegate(this)
         this.androidKeyStore = androidKeyStore
@@ -77,7 +77,7 @@ class AndroidKeyManager : KeyManager, SecureKeyDelegateInterface {
     constructor(
         storeInterface: StoreInterface,
         androidKeyStore: KeyStore,
-        keyNamespace: String?
+        keyNamespace: String?,
     ) : super(storeInterface) {
         keyManagerStore.setSecureKeyDelegate(this)
         this.androidKeyStore = androidKeyStore
@@ -94,7 +94,7 @@ class AndroidKeyManager : KeyManager, SecureKeyDelegateInterface {
         try {
             val builder = KeyGenParameterSpec.Builder(
                 toNamespacedName(MASTER_KEY_NAME),
-                KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+                KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT,
             )
             val keySpec = builder
                 .setKeySize(SYMMETRIC_KEY_SIZE)
@@ -107,11 +107,11 @@ class AndroidKeyManager : KeyManager, SecureKeyDelegateInterface {
             keyGenerator.init(keySpec)
             keyGenerator.generateKey()
         } catch (e: InvalidAlgorithmParameterException) {
-            throw KeyManagerException("Failed to create the master key.", e)
+            throw KeyManagerException(MASTER_KEY_CREATION_ERROR_MSG, e)
         } catch (e: NoSuchAlgorithmException) {
-            throw KeyManagerException("Failed to create the master key.", e)
+            throw KeyManagerException(MASTER_KEY_CREATION_ERROR_MSG, e)
         } catch (e: NoSuchProviderException) {
-            throw KeyManagerException("Failed to create the master key.", e)
+            throw KeyManagerException(MASTER_KEY_CREATION_ERROR_MSG, e)
         }
     }
 
@@ -120,11 +120,11 @@ class AndroidKeyManager : KeyManager, SecureKeyDelegateInterface {
         privateKey: ByteArray,
         publicKey: ByteArray,
         name: String,
-        isExportable: Boolean
+        isExportable: Boolean,
     ) {
         try {
             val publicKeyObj = bytesToPublicKey(publicKey)
-            val privateKeyObj = bytesToPrivateKey(privateKey)
+            val privateKeyObj = keyService.bytesToPrivateKey(privateKey)
             // Android Keystore requires the private key to be accompanied by a certificate. We have
             // to use BouncyCastle (SpongyCastle in Android land) here since there's no security
             // provider on Android that supports generating a self-signed certificate.
@@ -139,26 +139,27 @@ class AndroidKeyManager : KeyManager, SecureKeyDelegateInterface {
             val builder: X509v3CertificateBuilder = JcaX509v3CertificateBuilder(
                 X500Principal(CERTIFICATE_PRINCIPAL_ANONYOME),
                 BigInteger.ONE,
-                startDate, endDate,
+                startDate,
+                endDate,
                 X500Principal(CERTIFICATE_PRINCIPAL_ANONYOME),
-                publicKeyObj
+                publicKeyObj,
             )
             val certificate = certificateConverter.getCertificate(builder.build(signer))
             androidKeyStore.setKeyEntry(
                 toNamespacedName(name),
                 privateKeyObj,
                 null,
-                arrayOf<Certificate>(certificate)
+                arrayOf<Certificate>(certificate),
             )
             // Now store the exportable copies of the keys since we can't extract keys from Android Keystore.
             keyManagerStore.insertKey(privateKey, name, KeyType.PRIVATE_KEY, isExportable)
             keyManagerStore.insertKey(publicKey, name, KeyType.PUBLIC_KEY, isExportable)
         } catch (e: CertificateException) {
-            throw KeyManagerException("Failed to create a certificate.", e)
+            throw KeyManagerException(CERTIFICATE_CREATION_ERROR_MSG, e)
         } catch (e: OperatorCreationException) {
-            throw KeyManagerException("Failed to create a certificate.", e)
+            throw KeyManagerException(CERTIFICATE_CREATION_ERROR_MSG, e)
         } catch (e: GeneralSecurityException) {
-            throw KeyManagerException("Failed to add a key pair.", e)
+            throw KeyManagerException(KEY_PAIR_ADDITION_ERROR_MSG, e)
         }
     }
 
@@ -167,11 +168,11 @@ class AndroidKeyManager : KeyManager, SecureKeyDelegateInterface {
         privateKey: ByteArray,
         publicKey: ByteArray,
         name: String,
-        isExportable: Boolean
+        isExportable: Boolean,
     ) {
         try {
             val publicKeyObj = keyInfoBytesToPublicKey(publicKey)
-            val privateKeyObj = keyInfoBytesToPrivateKey(privateKey)
+            val privateKeyObj = keyService.keyInfoBytesToPrivateKey(privateKey)
             // Android Keystore requires the private key to be accompanied by a certificate. We have
             // to use BouncyCastle (SpongyCastle in Android land) here since there's no security
             // provider on Android that supports generating a self-signed certificate.
@@ -186,36 +187,37 @@ class AndroidKeyManager : KeyManager, SecureKeyDelegateInterface {
             val builder: X509v3CertificateBuilder = JcaX509v3CertificateBuilder(
                 X500Principal(CERTIFICATE_PRINCIPAL_ANONYOME),
                 BigInteger.ONE,
-                startDate, endDate,
+                startDate,
+                endDate,
                 X500Principal(CERTIFICATE_PRINCIPAL_ANONYOME),
-                publicKeyObj
+                publicKeyObj,
             )
             val certificate = certificateConverter.getCertificate(builder.build(signer))
             androidKeyStore.setKeyEntry(
                 toNamespacedName(name),
                 privateKeyObj,
                 null,
-                arrayOf<Certificate>(certificate)
+                arrayOf<Certificate>(certificate),
             )
             // Now store the exportable copies of the keys since we can't extract keys from Android Keystore.
             keyManagerStore.insertKey(
-                privateKeyToBytes(privateKeyObj),
+                keyService.privateKeyToBytes(privateKeyObj),
                 name,
                 KeyType.PRIVATE_KEY,
-                isExportable
+                isExportable,
             )
             keyManagerStore.insertKey(
                 publicKeyToBytes(publicKeyObj),
                 name,
                 KeyType.PUBLIC_KEY,
-                isExportable
+                isExportable,
             )
         } catch (e: CertificateException) {
-            throw KeyManagerException("Failed to create a certificate.", e)
+            throw KeyManagerException(CERTIFICATE_CREATION_ERROR_MSG, e)
         } catch (e: OperatorCreationException) {
-            throw KeyManagerException("Failed to create a certificate.", e)
+            throw KeyManagerException(CERTIFICATE_CREATION_ERROR_MSG, e)
         } catch (e: GeneralSecurityException) {
-            throw KeyManagerException("Failed to add a key pair.", e)
+            throw KeyManagerException(KEY_PAIR_ADDITION_ERROR_MSG, e)
         }
     }
 
@@ -248,11 +250,11 @@ class AndroidKeyManager : KeyManager, SecureKeyDelegateInterface {
     @Throws(
         UnrecoverableEntryException::class,
         NoSuchAlgorithmException::class,
-        KeyStoreException::class
+        KeyStoreException::class,
     )
     private fun getAndroidKeyStoreEntry(
         name: String,
-        param: KeyStore.ProtectionParameter?
+        param: KeyStore.ProtectionParameter?,
     ): KeyStore.Entry? {
         // Workaround for "java.security.UnrecoverableKeyException: Failed to obtain information about key"
         // caused by "android.security.KeyStoreException: System error"
@@ -283,11 +285,11 @@ class AndroidKeyManager : KeyManager, SecureKeyDelegateInterface {
                 privateKey = entry.privateKey
             }
         } catch (e: NoSuchAlgorithmException) {
-            throw KeyManagerException("Failed to retrieve the private key.", e)
+            throw KeyManagerException(PRIVATE_KEY_RETRIEVAL_ERROR_MSG, e)
         } catch (e: KeyStoreException) {
-            throw KeyManagerException("Failed to retrieve the private key.", e)
+            throw KeyManagerException(PRIVATE_KEY_RETRIEVAL_ERROR_MSG, e)
         } catch (e: UnrecoverableEntryException) {
-            throw KeyManagerException("Failed to retrieve the private key.", e)
+            throw KeyManagerException(PRIVATE_KEY_RETRIEVAL_ERROR_MSG, e)
         }
         return privateKey
     }
@@ -315,11 +317,11 @@ class AndroidKeyManager : KeyManager, SecureKeyDelegateInterface {
                 }
             }
         } catch (e: NoSuchAlgorithmException) {
-            throw KeyManagerException("Failed to retrieve the public key.", e)
+            throw KeyManagerException(PUBLIC_KEY_RETRIEVAL_ERROR_MSG, e)
         } catch (e: KeyStoreException) {
-            throw KeyManagerException("Failed to retrieve the public key.", e)
+            throw KeyManagerException(PUBLIC_KEY_RETRIEVAL_ERROR_MSG, e)
         } catch (e: UnrecoverableEntryException) {
-            throw KeyManagerException("Failed to retrieve the public key.", e)
+            throw KeyManagerException(PUBLIC_KEY_RETRIEVAL_ERROR_MSG, e)
         }
         return publicKey
     }
@@ -334,11 +336,11 @@ class AndroidKeyManager : KeyManager, SecureKeyDelegateInterface {
                 secretKey = entry.secretKey
             }
         } catch (e: KeyStoreException) {
-            throw KeyManagerException("Failed to retrieve the symmetric key.", e)
+            throw KeyManagerException(SYMMETRIC_KEY_RETRIEVAL_ERROR_MSG, e)
         } catch (e: NoSuchAlgorithmException) {
-            throw KeyManagerException("Failed to retrieve the symmetric key.", e)
+            throw KeyManagerException(SYMMETRIC_KEY_RETRIEVAL_ERROR_MSG, e)
         } catch (e: UnrecoverableEntryException) {
-            throw KeyManagerException("Failed to retrieve the symmetric key.", e)
+            throw KeyManagerException(SYMMETRIC_KEY_RETRIEVAL_ERROR_MSG, e)
         }
         return secretKey
     }
@@ -348,7 +350,7 @@ class AndroidKeyManager : KeyManager, SecureKeyDelegateInterface {
         return this.encryptWithSymmetricKey(
             MASTER_KEY_NAME,
             key,
-            SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256
+            SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256,
         )
     }
 
@@ -357,7 +359,7 @@ class AndroidKeyManager : KeyManager, SecureKeyDelegateInterface {
         return this.decryptWithSymmetricKey(
             MASTER_KEY_NAME,
             key,
-            SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256
+            SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256,
         )
     }
 
@@ -381,6 +383,15 @@ class AndroidKeyManager : KeyManager, SecureKeyDelegateInterface {
         private const val ANDROID_KEY_STORE = "AndroidKeyStore"
         private const val MASTER_KEY_NAME = "com.anonyome.android.masterkey"
         private const val NAME_CANT_BE_NULL = "name can't be null."
+
+        /** Exception messages */
+        private const val MASTER_KEY_CREATION_ERROR_MSG = "Failed to create the master key."
+        private const val CERTIFICATE_CREATION_ERROR_MSG = "Failed to create a certificate."
+        private const val KEY_PAIR_ADDITION_ERROR_MSG = "Failed to add a key pair."
+        private const val PRIVATE_KEY_RETRIEVAL_ERROR_MSG = "Failed to retrieve the private key."
+        private const val PUBLIC_KEY_RETRIEVAL_ERROR_MSG = "Failed to retrieve the public key."
+        private const val SYMMETRIC_KEY_RETRIEVAL_ERROR_MSG = "Failed to retrieve the symmetric key."
+
         private fun isSystemError(ex: UnrecoverableEntryException): Boolean {
             val cause = ex.cause
             if (cause != null) {

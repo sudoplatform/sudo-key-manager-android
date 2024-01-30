@@ -118,10 +118,19 @@ interface SecureKeyArchiveInterface {
      * @param excludedKeys the key names to exclude from the archive.
      */
     var excludedKeys: MutableSet<String>
+
+    /**
+     * Sets the key types to exclude from the archive.
+     *
+     * @param excludedKeyTypes the key names to exclude from the archive.
+     */
+    var excludedKeyTypes: MutableSet<KeyType>
+
     /**
      * @return the meta-information associated with this archive in an unmodifiable map.
      */
     fun getMetaInfo(): Map<String, String>?
+
     /**
      * Sets the meta-information associated with this archive.
      *

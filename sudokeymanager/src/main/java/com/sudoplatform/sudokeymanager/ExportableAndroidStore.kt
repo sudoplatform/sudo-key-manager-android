@@ -52,7 +52,7 @@ class ExportableAndroidStore : StoreInterface {
      */
     constructor(
         context: Context,
-        symmetricKeyAlgorithm: String
+        symmetricKeyAlgorithm: String,
     ) {
         Objects.requireNonNull(context, "context can't be null.")
         Objects.requireNonNull(symmetricKeyAlgorithm, "symmetricKeyAlgorithm can't be null.")
@@ -62,13 +62,13 @@ class ExportableAndroidStore : StoreInterface {
             androidKeyStore = KeyStore.getInstance(ANDROID_KEY_STORE)
             androidKeyStore?.load(null)
         } catch (e: KeyStoreException) {
-            throw KeyManagerException("Failed to load Android Keystore.", e)
+            throw KeyManagerException(KEY_STORE_LOAD_ERROR_MSG, e)
         } catch (e: CertificateException) {
-            throw KeyManagerException("Failed to load Android Keystore.", e)
+            throw KeyManagerException(KEY_STORE_LOAD_ERROR_MSG, e)
         } catch (e: NoSuchAlgorithmException) {
-            throw KeyManagerException("Failed to load Android Keystore.", e)
+            throw KeyManagerException(KEY_STORE_LOAD_ERROR_MSG, e)
         } catch (e: IOException) {
-            throw KeyManagerException("Failed to load Android Keystore.", e)
+            throw KeyManagerException(KEY_STORE_LOAD_ERROR_MSG, e)
         }
     }
 
@@ -84,7 +84,7 @@ class ExportableAndroidStore : StoreInterface {
     constructor(
         context: Context,
         symmetricKeyAlgorithm: String,
-        keyNamespace: String?
+        keyNamespace: String?,
     ) {
         Objects.requireNonNull(context, "context can't be null.")
         Objects.requireNonNull(symmetricKeyAlgorithm, "symmetricKeyAlgorithm can't be null.")
@@ -95,13 +95,13 @@ class ExportableAndroidStore : StoreInterface {
             androidKeyStore = KeyStore.getInstance(ANDROID_KEY_STORE)
             androidKeyStore?.load(null)
         } catch (e: KeyStoreException) {
-            throw KeyManagerException("Failed to load Android Keystore.", e)
+            throw KeyManagerException(KEY_STORE_LOAD_ERROR_MSG, e)
         } catch (e: CertificateException) {
-            throw KeyManagerException("Failed to load Android Keystore.", e)
+            throw KeyManagerException(KEY_STORE_LOAD_ERROR_MSG, e)
         } catch (e: NoSuchAlgorithmException) {
-            throw KeyManagerException("Failed to load Android Keystore.", e)
+            throw KeyManagerException(KEY_STORE_LOAD_ERROR_MSG, e)
         } catch (e: IOException) {
-            throw KeyManagerException("Failed to load Android Keystore.", e)
+            throw KeyManagerException(KEY_STORE_LOAD_ERROR_MSG, e)
         }
     }
 
@@ -119,7 +119,7 @@ class ExportableAndroidStore : StoreInterface {
         context: Context,
         symmetricKeyAlgorithm: String,
         keyNamespace: String?,
-        databaseName: String?
+        databaseName: String?,
     ) {
         Objects.requireNonNull(context, "context can't be null.")
         Objects.requireNonNull(symmetricKeyAlgorithm, "symmetricKeyAlgorithm can't be null.")
@@ -130,13 +130,13 @@ class ExportableAndroidStore : StoreInterface {
             androidKeyStore = KeyStore.getInstance(ANDROID_KEY_STORE)
             androidKeyStore?.load(null)
         } catch (e: KeyStoreException) {
-            throw KeyManagerException("Failed to load Android Keystore.", e)
+            throw KeyManagerException(KEY_STORE_LOAD_ERROR_MSG, e)
         } catch (e: CertificateException) {
-            throw KeyManagerException("Failed to load Android Keystore.", e)
+            throw KeyManagerException(KEY_STORE_LOAD_ERROR_MSG, e)
         } catch (e: NoSuchAlgorithmException) {
-            throw KeyManagerException("Failed to load Android Keystore.", e)
+            throw KeyManagerException(KEY_STORE_LOAD_ERROR_MSG, e)
         } catch (e: IOException) {
-            throw KeyManagerException("Failed to load Android Keystore.", e)
+            throw KeyManagerException(KEY_STORE_LOAD_ERROR_MSG, e)
         }
     }
 
@@ -145,7 +145,7 @@ class ExportableAndroidStore : StoreInterface {
         keyBytes: ByteArray,
         name: String,
         type: KeyType,
-        isExportable: Boolean
+        isExportable: Boolean,
     ) {
         Objects.requireNonNull(keyBytes, "keyBytes can't be null.")
         Objects.requireNonNull(name, NAME_CANT_BE_NULL)
@@ -163,21 +163,21 @@ class ExportableAndroidStore : StoreInterface {
                 if (symmetricKeyAlgorithm == KeyManager.SYMMETRIC_KEY_ALGORITHM_AES) {
                     builder.setBlockModes(
                         KeyProperties.BLOCK_MODE_CBC,
-                        KeyProperties.BLOCK_MODE_GCM
+                        KeyProperties.BLOCK_MODE_GCM,
                     )
                     builder.setEncryptionPaddings(
                         KeyProperties.ENCRYPTION_PADDING_PKCS7,
-                        KeyProperties.ENCRYPTION_PADDING_NONE
+                        KeyProperties.ENCRYPTION_PADDING_NONE,
                     )
                 }
                 try {
                     androidKeyStore.setEntry(
                         toNamespacedName(name),
                         KeyStore.SecretKeyEntry(secretKey),
-                        builder.build()
+                        builder.build(),
                     )
                 } catch (e: KeyStoreException) {
-                    throw KeyManagerException("Failed to add a symmetric key to the store.", e)
+                    throw KeyManagerException(SYMMETRIC_KEY_ADDITION_ERROR_MSG, e)
                 }
             }
 
@@ -205,7 +205,7 @@ class ExportableAndroidStore : StoreInterface {
         try {
             androidKeyStore.deleteEntry(toNamespacedName(name))
         } catch (e: KeyStoreException) {
-            throw KeyManagerException("Failed to delete a key.", e)
+            throw KeyManagerException(KEY_DELETION_ERROR_MSG, e)
         }
     }
 
@@ -225,7 +225,7 @@ class ExportableAndroidStore : StoreInterface {
                 }
             }
         } catch (e: KeyStoreException) {
-            throw KeyManagerException("Failed to reset Android keystore.", e)
+            throw KeyManagerException(KEY_STORE_RESET_ERROR_MSG, e)
         }
     }
 
@@ -262,7 +262,7 @@ class ExportableAndroidStore : StoreInterface {
                 }
             }
         } catch (e: KeyStoreException) {
-            throw KeyManagerException("Failed to query Android keystore for key aliases.", e)
+            throw KeyManagerException(KEY_STORE_QUERY_ERROR_MSG, e)
         }
         return aliasSet
     }
@@ -275,5 +275,12 @@ class ExportableAndroidStore : StoreInterface {
         private const val ANDROID_KEY_STORE = "AndroidKeyStore"
         private const val NAME_CANT_BE_NULL = "name can't be null."
         private const val TYPE_CANT_BE_NULL = "type can't be null."
+
+        /** Exception messages */
+        private const val KEY_STORE_LOAD_ERROR_MSG = "Failed to load Android Keystore."
+        private const val SYMMETRIC_KEY_ADDITION_ERROR_MSG = "Failed to add a symmetric key to the store."
+        private const val KEY_DELETION_ERROR_MSG = "Failed to delete a key."
+        private const val KEY_STORE_RESET_ERROR_MSG = "Failed to reset Android keystore."
+        private const val KEY_STORE_QUERY_ERROR_MSG = "Failed to query Android keystore for key aliases."
     }
 }
