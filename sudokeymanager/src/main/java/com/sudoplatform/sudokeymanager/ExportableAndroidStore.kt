@@ -256,7 +256,9 @@ class ExportableAndroidStore : StoreInterface {
             while (aliases.hasMoreElements()) {
                 val alias = aliases.nextElement()
                 if (keyNamespace != null) {
-                    aliasSet.add(alias.substring((keyNamespace + ".").length))
+                    if (alias.length > (keyNamespace + ".").length && alias.startsWith(keyNamespace!!)) {
+                        aliasSet.add(alias.substring((keyNamespace + ".").length))
+                    }
                 } else {
                     aliasSet.add(alias)
                 }
