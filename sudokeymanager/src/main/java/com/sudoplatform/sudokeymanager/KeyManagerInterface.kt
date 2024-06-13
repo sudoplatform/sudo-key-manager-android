@@ -778,6 +778,22 @@ interface KeyManagerInterface : AutoCloseable {
     ): ByteArray
 
     /**
+     * Encrypts the given data with the specified public key.
+     *
+     * @param key [ByteArray] Raw key bytes of the public key to use for encryption.
+     * @param data [ByteArray] Data to encrypt.
+     * @param algorithm [PublicKeyEncryptionAlgorithm] The encryption algorithm to use.
+     * @return encrypted data.
+     * @throws KeyManagerException Which might contain an exception from java.security.
+     */
+    @Throws(KeyManagerException::class)
+    fun encryptWithPublicKey(
+        key: ByteArray,
+        data: ByteArray,
+        algorithm: PublicKeyEncryptionAlgorithm,
+    ): ByteArray
+
+    /**
      * Decrypts the given data with the specified private key.
      *
      * @param name name of the private key to use for decryption.

@@ -743,33 +743,52 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
         Objects.requireNonNull(name, NAME_CANT_BE_NULL)
         Objects.requireNonNull(data, DATA_CANT_BE_NULL)
         Objects.requireNonNull(algorithm, ALGORITHM_CANT_BE_NULL)
-        val encrypted: ByteArray
-        val publicKey = getPublicKey(name)
-        if (publicKey != null) {
-            try {
-                var cipher: Cipher?
-                synchronized(KeyManager::class.java) {
-                    cipher = getCipher(algorithm)
-                    cipher!!.init(Cipher.ENCRYPT_MODE, publicKey)
+        val publicKey = getPublicKey(name) ?: throw KeyNotFoundException(KEY_NOT_FOUND.format(name))
+        return this.encryptWithPublicKeyData(publicKey, data, algorithm)
+    }
+
+    /**
+     * Encrypts the given data with the specified public key.
+     *
+     * @param key [ByteArray] Raw key bytes of the public key to use for encryption.
+     * @param data [ByteArray] Data to encrypt.
+     * @param algorithm [PublicKeyEncryptionAlgorithm] The encryption algorithm to use.
+     * @return encrypted data.
+     * @throws KeyManagerException Which might contain an exception from java.security.
+     */
+    @Throws(KeyManagerException::class)
+    override fun encryptWithPublicKey(
+        key: ByteArray,
+        data: ByteArray,
+        algorithm: PublicKeyEncryptionAlgorithm,
+    ): ByteArray {
+        Objects.requireNonNull(key, KEY_CANT_BE_NULL)
+        Objects.requireNonNull(data, DATA_CANT_BE_NULL)
+        Objects.requireNonNull(algorithm, ALGORITHM_CANT_BE_NULL)
+        val publicKey = bytesToPublicKey(key)
+        return this.encryptWithPublicKeyData(publicKey, data, algorithm)
+    }
+
+    @Throws(KeyManagerException::class)
+    private fun encryptWithPublicKeyData(
+        publicKey: PublicKey,
+        data: ByteArray,
+        algorithm: PublicKeyEncryptionAlgorithm,
+    ): ByteArray {
+        return try {
+            val cipher = synchronized(KeyManager::class.java) {
+                getCipher(algorithm)!!.apply {
+                    init(Cipher.ENCRYPT_MODE, publicKey)
                 }
-                encrypted = cipher!!.doFinal(data)
-            } catch (e: BadPaddingException) {
-                throw KeyManagerException(FAILED_PUBLIC_KEY_ENCRYPTION, e)
-            } catch (e: IllegalBlockSizeException) {
-                throw KeyManagerException(FAILED_PUBLIC_KEY_ENCRYPTION, e)
-            } catch (e: InvalidKeyException) {
-                throw KeyManagerException(
-                    String.format(
-                        "Key \"%s\" cannot be used to encrypt.",
-                        name,
-                    ),
-                    e,
-                )
             }
-        } else {
-            throw KeyNotFoundException(String.format(KEY_NOT_FOUND, name))
+            cipher.doFinal(data)
+        } catch (e: BadPaddingException) {
+            throw KeyManagerException(FAILED_PUBLIC_KEY_ENCRYPTION, e)
+        } catch (e: IllegalBlockSizeException) {
+            throw KeyManagerException(FAILED_PUBLIC_KEY_ENCRYPTION, e)
+        } catch (e: InvalidKeyException) {
+            throw KeyManagerException(FAILED_PUBLIC_KEY_ENCRYPTION, e)
         }
-        return encrypted
     }
 
     /**
@@ -1175,7 +1194,7 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
          * and allow us to retry. The value of `version` doesn't need to be kept up-to-date with the
          * version of the code.
          */
-        private const val VERSION = "7.0.0"
+        private const val VERSION = "7.3.0"
 
         // Constants related to symmetric key crypto.
         const val SYMMETRIC_KEY_ALGORITHM_AES = "AES"
