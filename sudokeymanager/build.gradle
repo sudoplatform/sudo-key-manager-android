@@ -8,9 +8,9 @@ android {
     namespace "com.sudoplatform.sudokeymanager"
     defaultConfig {
         minSdkVersion 26
-        targetSdkVersion 33
+        targetSdkVersion 34
         versionCode 1
-        versionName "7.3.0"
+        versionName "8.0.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         multiDexEnabled true
     }
@@ -68,12 +68,12 @@ android {
 
 dependencies {
     implementation "com.madgag.spongycastle:bcpkix-jdk15on:1.58.0.0"
-    implementation "com.google.code.gson:gson:2.9.0"
+    implementation "com.google.code.gson:gson:2.10.1"
     implementation "org.jetbrains.kotlin:kotlin-stdlib:${kotlinVersion}"
-    implementation "androidx.annotation:annotation:1.6.0"
+    implementation "androidx.annotation:annotation:1.8.0"
 
     // Sudo Platform
-    implementation "com.sudoplatform:sudologging:4.0.0"
+    implementation "com.sudoplatform:sudologging:5.0.0"
 
     // Unit testing
     testImplementation("junit:junit:4.13.2") {
@@ -86,11 +86,11 @@ dependencies {
     testImplementation "org.robolectric:robolectric:4.10.3"
 
     //testRunner
-    androidTestImplementation "androidx.test:runner:1.5.2"
+    androidTestImplementation "androidx.test:runner:1.6.0"
 
     //espresso
-    androidTestImplementation "androidx.test.espresso:espresso-core:3.5.1"
-    androidTestImplementation "androidx.test.ext:junit:1.1.5"
+    androidTestImplementation "androidx.test.espresso:espresso-core:3.6.0"
+    androidTestImplementation "androidx.test.ext:junit:1.2.0"
 
     // timber
     androidTestImplementation "com.jakewharton.timber:timber:5.0.1"
@@ -153,7 +153,7 @@ licenseTools {
 @Grab('org.yaml:snakeyaml:1.17') // Yaml parser
 import org.yaml.snakeyaml.Yaml
 
-task checkLicenseHaveRequiredFields {
+tasks.register("checkLicenseHaveRequiredFields") {
     description = "Check every license entry has the mandatory fields"
     group = "verification"
     doLast {
@@ -213,7 +213,7 @@ jacoco {
     toolVersion = "0.8.7"
 }
 
-task jacocoTestReport(type: JacocoReport, dependsOn:"testDebugUnitTest") {
+tasks.register("jacocoTestReport", JacocoReport, "testDebugUnitTest") {
     group = "Reporting"
     description = "Generate Jacoco coverage reports"
     classDirectories.setFrom(

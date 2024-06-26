@@ -34,12 +34,6 @@
   license: The Apache Software License, Version 2.0
   licenseUrl: http://www.apache.org/licenses/LICENSE-2.0.txt
   url: https://github.com/google/gson
-- artifact: org.jetbrains.kotlin:kotlin-stdlib-common:+
-  name: Kotlin Stdlib Common
-  copyrightHolder: JetBrains, Inc.
-  license: The Apache License, Version 2.0
-  licenseUrl: http://www.apache.org/licenses/LICENSE-2.0.txt
-  url: https://kotlinlang.org/
 - artifact: org.hamcrest:hamcrest-core:+
   name: Hamcrest Core
   copyrightHolder: hamcrest.org
