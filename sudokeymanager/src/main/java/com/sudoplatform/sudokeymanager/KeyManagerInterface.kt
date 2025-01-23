@@ -20,6 +20,12 @@ interface KeyManagerInterface : AutoCloseable {
         RSA_ECB_OAEPSHA1,
     }
 
+    /** The public key formats supported by KeyManagerAndroid kit  */
+    enum class PublicKeyFormat {
+        RSA_PUBLIC_KEY,
+        SPKI,
+    }
+
     /** The symmetric encryption algorithms supported by KeyManagerAndroid kit  */
     enum class SymmetricEncryptionAlgorithm {
         AES_CBC_PKCS7_256,
@@ -781,6 +787,7 @@ interface KeyManagerInterface : AutoCloseable {
      * Encrypts the given data with the specified public key.
      *
      * @param key [ByteArray] Raw key bytes of the public key to use for encryption.
+     * The key must be in RSA Public Key format (PKCS#1).
      * @param data [ByteArray] Data to encrypt.
      * @param algorithm [PublicKeyEncryptionAlgorithm] The encryption algorithm to use.
      * @return encrypted data.
@@ -790,6 +797,27 @@ interface KeyManagerInterface : AutoCloseable {
     fun encryptWithPublicKey(
         key: ByteArray,
         data: ByteArray,
+        algorithm: PublicKeyEncryptionAlgorithm,
+    ): ByteArray {
+        return encryptWithPublicKey(key, data, PublicKeyFormat.RSA_PUBLIC_KEY, algorithm)
+    }
+
+    /**
+     * Encrypts the given data with the specified public key. The public key data be in either
+     * RSA Public Key (PKCS#1) or SPKI format.
+     *
+     * @param key [ByteArray] Raw key bytes of the public key to use for encryption.
+     * @param data [ByteArray] Data to encrypt.
+     * @param format [PublicKeyFormat] The format of the public key data.
+     * @param algorithm [PublicKeyEncryptionAlgorithm] The encryption algorithm to use.
+     * @return encrypted data.
+     * @throws KeyManagerException Which might contain an exception from java.security.
+     */
+    @Throws(KeyManagerException::class)
+    fun encryptWithPublicKey(
+        key: ByteArray,
+        data: ByteArray,
+        format: PublicKeyFormat,
         algorithm: PublicKeyEncryptionAlgorithm,
     ): ByteArray
 

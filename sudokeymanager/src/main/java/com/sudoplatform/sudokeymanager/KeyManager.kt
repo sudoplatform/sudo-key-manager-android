@@ -6,6 +6,7 @@
 package com.sudoplatform.sudokeymanager
 
 import com.sudoplatform.sudokeymanager.KeyManagerInterface.PublicKeyEncryptionAlgorithm
+import com.sudoplatform.sudokeymanager.KeyManagerInterface.PublicKeyFormat
 import com.sudoplatform.sudokeymanager.KeyManagerInterface.SymmetricEncryptionAlgorithm
 import org.spongycastle.asn1.pkcs.RSAPublicKey
 import org.spongycastle.asn1.x509.SubjectPublicKeyInfo
@@ -748,10 +749,12 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
     }
 
     /**
-     * Encrypts the given data with the specified public key.
+     * Encrypts the given data with the specified public key. The public key data be in either
+     * RSA Public Key (PKCS#1) or SPKI format.
      *
      * @param key [ByteArray] Raw key bytes of the public key to use for encryption.
      * @param data [ByteArray] Data to encrypt.
+     * @param format [PublicKeyFormat] The format of the public key data.
      * @param algorithm [PublicKeyEncryptionAlgorithm] The encryption algorithm to use.
      * @return encrypted data.
      * @throws KeyManagerException Which might contain an exception from java.security.
@@ -760,12 +763,20 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
     override fun encryptWithPublicKey(
         key: ByteArray,
         data: ByteArray,
+        format: PublicKeyFormat,
         algorithm: PublicKeyEncryptionAlgorithm,
     ): ByteArray {
         Objects.requireNonNull(key, KEY_CANT_BE_NULL)
         Objects.requireNonNull(data, DATA_CANT_BE_NULL)
         Objects.requireNonNull(algorithm, ALGORITHM_CANT_BE_NULL)
-        val publicKey = bytesToPublicKey(key)
+        Objects.requireNonNull(format, KEY_FORMAT_CANT_BE_NULL)
+        val publicKey: PublicKey = when (format) {
+            PublicKeyFormat.RSA_PUBLIC_KEY ->
+                bytesToPublicKey(key)
+
+            PublicKeyFormat.SPKI ->
+                keyInfoBytesToPublicKey(key)
+        }
         return this.encryptWithPublicKeyData(publicKey, data, algorithm)
     }
 
@@ -1250,6 +1261,7 @@ open class KeyManager(keyManagerStore: StoreInterface) : KeyManagerInterface {
         private const val KEY_CANT_BE_NULL = "key can't be null."
         private const val DATA_CANT_BE_NULL = "data can't be null."
         private const val ALGORITHM_CANT_BE_NULL = "algorithm can't be null."
+        private const val KEY_FORMAT_CANT_BE_NULL = "key format can't be null."
         private const val KEY_NOT_FOUND = "Key \"%s\" not found."
         private const val FAILED_TO_DECRYPT = "Failed to decrypt using the symmetric key."
         private const val FAILED_TO_ENCRYPT = "Failed to encrypt using the symmetric key."

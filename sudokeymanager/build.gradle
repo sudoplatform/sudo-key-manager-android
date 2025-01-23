@@ -142,8 +142,8 @@ afterEvaluate {
     }
 }
 
-// https://github.com/cookpad/license-tools-plugin
-apply plugin: "com.cookpad.android.licensetools"
+// https://github.com/cookpad/LicenseToolsPlugin
+apply plugin: "com.cookpad.android.plugin.license-tools"
 licenseTools {
     licensesYaml = file("licenses.yml")
     ignoredGroups = ["com.nhaarman:mockito-kotlin", "com.anonyome", "com.sudoplatform"]
@@ -210,7 +210,7 @@ else if (project.file("${rootProject.projectDir}/util/publish-internal-android.g
 apply plugin: 'jacoco'
 
 jacoco {
-    toolVersion = "0.8.7"
+    toolVersion = "0.8.12"
 }
 
 tasks.register("jacocoTestReport", JacocoReport, "testDebugUnitTest") {
