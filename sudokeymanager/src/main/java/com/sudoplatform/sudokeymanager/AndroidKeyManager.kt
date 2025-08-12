@@ -40,7 +40,9 @@ import javax.security.auth.x500.X500Principal
  * Android Keystore is only accessible by the app that had created them and all cryptographic
  * operations are performed at system level and keys are never passed to the user space.
  */
-class AndroidKeyManager : KeyManager, SecureKeyDelegateInterface {
+class AndroidKeyManager :
+    KeyManager,
+    SecureKeyDelegateInterface {
     // Android Keystore. All crypto operations will be performed within this system level
     // store.
     private val androidKeyStore: KeyStore
@@ -92,16 +94,18 @@ class AndroidKeyManager : KeyManager, SecureKeyDelegateInterface {
             return
         }
         try {
-            val builder = KeyGenParameterSpec.Builder(
-                toNamespacedName(MASTER_KEY_NAME),
-                KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT,
-            )
-            val keySpec = builder
-                .setKeySize(SYMMETRIC_KEY_SIZE)
-                .setBlockModes(KeyProperties.BLOCK_MODE_CBC)
-                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_PKCS7)
-                .setRandomizedEncryptionRequired(false)
-                .build()
+            val builder =
+                KeyGenParameterSpec.Builder(
+                    toNamespacedName(MASTER_KEY_NAME),
+                    KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT,
+                )
+            val keySpec =
+                builder
+                    .setKeySize(SYMMETRIC_KEY_SIZE)
+                    .setBlockModes(KeyProperties.BLOCK_MODE_CBC)
+                    .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_PKCS7)
+                    .setRandomizedEncryptionRequired(false)
+                    .build()
             val keyGenerator =
                 KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEY_STORE)
             keyGenerator.init(keySpec)
@@ -136,14 +140,15 @@ class AndroidKeyManager : KeyManager, SecureKeyDelegateInterface {
             val ninetyNineYears = TimeUnit.DAYS.toMillis(99 * 365L)
             val startDate = Date(now - oneDay)
             val endDate = Date(now + ninetyNineYears)
-            val builder: X509v3CertificateBuilder = JcaX509v3CertificateBuilder(
-                X500Principal(CERTIFICATE_PRINCIPAL_ANONYOME),
-                BigInteger.ONE,
-                startDate,
-                endDate,
-                X500Principal(CERTIFICATE_PRINCIPAL_ANONYOME),
-                publicKeyObj,
-            )
+            val builder: X509v3CertificateBuilder =
+                JcaX509v3CertificateBuilder(
+                    X500Principal(CERTIFICATE_PRINCIPAL_ANONYOME),
+                    BigInteger.ONE,
+                    startDate,
+                    endDate,
+                    X500Principal(CERTIFICATE_PRINCIPAL_ANONYOME),
+                    publicKeyObj,
+                )
             val certificate = certificateConverter.getCertificate(builder.build(signer))
             androidKeyStore.setKeyEntry(
                 toNamespacedName(name),
@@ -184,14 +189,15 @@ class AndroidKeyManager : KeyManager, SecureKeyDelegateInterface {
             val ninetyNineYears = TimeUnit.DAYS.toMillis(99 * 365L)
             val startDate = Date(now - oneDay)
             val endDate = Date(now + ninetyNineYears)
-            val builder: X509v3CertificateBuilder = JcaX509v3CertificateBuilder(
-                X500Principal(CERTIFICATE_PRINCIPAL_ANONYOME),
-                BigInteger.ONE,
-                startDate,
-                endDate,
-                X500Principal(CERTIFICATE_PRINCIPAL_ANONYOME),
-                publicKeyObj,
-            )
+            val builder: X509v3CertificateBuilder =
+                JcaX509v3CertificateBuilder(
+                    X500Principal(CERTIFICATE_PRINCIPAL_ANONYOME),
+                    BigInteger.ONE,
+                    startDate,
+                    endDate,
+                    X500Principal(CERTIFICATE_PRINCIPAL_ANONYOME),
+                    publicKeyObj,
+                )
             val certificate = certificateConverter.getCertificate(builder.build(signer))
             androidKeyStore.setKeyEntry(
                 toNamespacedName(name),
@@ -243,9 +249,11 @@ class AndroidKeyManager : KeyManager, SecureKeyDelegateInterface {
         }
 
     @Throws(KeyManagerException::class)
-    override fun addPrivateKey(key: ByteArray, name: String, isExportable: Boolean) {
-        throw UnsupportedOperationException("Cannot add a private key on its own to an Android key store.")
-    }
+    override fun addPrivateKey(
+        key: ByteArray,
+        name: String,
+        isExportable: Boolean,
+    ): Unit = throw UnsupportedOperationException("Cannot add a private key on its own to an Android key store.")
 
     @Throws(
         UnrecoverableEntryException::class,
@@ -295,7 +303,11 @@ class AndroidKeyManager : KeyManager, SecureKeyDelegateInterface {
     }
 
     @Throws(KeyManagerException::class)
-    override fun addPublicKey(key: ByteArray, name: String, isExportable: Boolean) {
+    override fun addPublicKey(
+        key: ByteArray,
+        name: String,
+        isExportable: Boolean,
+    ) {
         // Validate the key bytes by converting them
         bytesToPublicKey(key)
         // A public key without a private key cannot be stored in the AndroidKeyStore, so store it outside.
@@ -346,22 +358,20 @@ class AndroidKeyManager : KeyManager, SecureKeyDelegateInterface {
     }
 
     @Throws(KeyManagerException::class)
-    override fun encryptKey(key: ByteArray): ByteArray {
-        return this.encryptWithSymmetricKey(
+    override fun encryptKey(key: ByteArray): ByteArray =
+        this.encryptWithSymmetricKey(
             MASTER_KEY_NAME,
             key,
             SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256,
         )
-    }
 
     @Throws(KeyManagerException::class)
-    override fun decryptKey(key: ByteArray): ByteArray {
-        return this.decryptWithSymmetricKey(
+    override fun decryptKey(key: ByteArray): ByteArray =
+        this.decryptWithSymmetricKey(
             MASTER_KEY_NAME,
             key,
             SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256,
         )
-    }
 
     @Throws(KeyManagerException::class)
     override fun removeAllKeys() {
@@ -369,9 +379,7 @@ class AndroidKeyManager : KeyManager, SecureKeyDelegateInterface {
         createMasterKey()
     }
 
-    private fun toNamespacedName(name: String): String {
-        return if (keyNamespace != null) "$keyNamespace.$name" else name
-    }
+    private fun toNamespacedName(name: String): String = if (keyNamespace != null) "$keyNamespace.$name" else name
 
     companion object {
         private const val TAG = "AndroidKeyManager"

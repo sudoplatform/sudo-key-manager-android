@@ -34,6 +34,12 @@
   license: The Apache Software License, Version 2.0
   licenseUrl: http://www.apache.org/licenses/LICENSE-2.0.txt
   url: https://github.com/google/gson
+- artifact: com.google.errorprone:error_prone_annotations:+
+  name: Error Prone Annotations
+  copyrightHolder: Google, Inc.
+  license: Apache 2.0
+  licenseUrl: http://www.apache.org/licenses/LICENSE-2.0.txt
+  url: https://github.com/google/error-prone
 - artifact: org.hamcrest:hamcrest-core:+
   name: Hamcrest Core
   copyrightHolder: hamcrest.org

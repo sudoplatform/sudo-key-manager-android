@@ -48,3 +48,6 @@ register_key*
 
 # jacoco
 sudokeymanager/jacoco.exec
+
+# ai
+.mcp-project.json

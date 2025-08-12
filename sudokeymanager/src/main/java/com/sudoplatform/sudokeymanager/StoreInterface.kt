@@ -20,7 +20,12 @@ interface StoreInterface : AutoCloseable {
      * @throws KeyManagerException
      */
     @Throws(KeyManagerException::class)
-    fun insertKey(keyBytes: ByteArray, name: String, type: KeyType, isExportable: Boolean)
+    fun insertKey(
+        keyBytes: ByteArray,
+        name: String,
+        type: KeyType,
+        isExportable: Boolean,
+    )
 
     /**
      * Updates an existing key.
@@ -29,7 +34,11 @@ interface StoreInterface : AutoCloseable {
      * @param name key name.
      * @param type key type. See [com.sudoplatform.sudokeymanager.KeyType].
      */
-    fun updateKey(keyBytes: ByteArray, name: String, type: KeyType)
+    fun updateKey(
+        keyBytes: ByteArray,
+        name: String,
+        type: KeyType,
+    )
 
     /**
      * Retrieves the specified key.
@@ -40,7 +49,10 @@ interface StoreInterface : AutoCloseable {
      * @throws KeyManagerException
      */
     @Throws(KeyManagerException::class)
-    fun getKey(name: String, type: KeyType): ByteArray?
+    fun getKey(
+        name: String,
+        type: KeyType,
+    ): ByteArray?
 
     /**
      * Deletes the specified key.
@@ -50,7 +62,10 @@ interface StoreInterface : AutoCloseable {
      * @throws KeyManagerException
      */
     @Throws(KeyManagerException::class)
-    fun deleteKey(name: String, type: KeyType)
+    fun deleteKey(
+        name: String,
+        type: KeyType,
+    )
 
     /**
      * Resets the store by removing all keys.

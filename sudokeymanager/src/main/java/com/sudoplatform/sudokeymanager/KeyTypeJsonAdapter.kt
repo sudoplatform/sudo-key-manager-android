@@ -16,7 +16,10 @@ import java.io.IOException
  */
 class KeyTypeJsonAdapter : TypeAdapter<KeyType?>() {
     @Throws(IOException::class)
-    override fun write(out: JsonWriter, value: KeyType?) {
+    override fun write(
+        out: JsonWriter,
+        value: KeyType?,
+    ) {
         out.jsonValue(value!!.name)
     }
 

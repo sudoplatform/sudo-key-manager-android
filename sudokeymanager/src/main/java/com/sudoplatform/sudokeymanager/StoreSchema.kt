@@ -28,6 +28,6 @@ class StoreSchema private constructor() {
                 COLUMN_NAME_DATA + " BLOB NOT NULL," +
                 "PRIMARY KEY (NAME, TYPE)" +
                 ");"
-            )
+        )
     }
 }

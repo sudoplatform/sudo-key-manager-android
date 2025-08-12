@@ -40,7 +40,10 @@ interface KeyManagerInterface : AutoCloseable {
      * @throws KeyManagerException on failure which might contain a java.security exception.
      */
     @Throws(KeyManagerException::class)
-    fun addPassword(password: ByteArray, name: String)
+    fun addPassword(
+        password: ByteArray,
+        name: String,
+    )
 
     /**
      * Adds a password or other generic data to the secure store.
@@ -51,7 +54,11 @@ interface KeyManagerInterface : AutoCloseable {
      * @throws KeyManagerException on failure which might contain a java.security exception.
      */
     @Throws(KeyManagerException::class)
-    fun addPassword(password: ByteArray, name: String, isExportable: Boolean)
+    fun addPassword(
+        password: ByteArray,
+        name: String,
+        isExportable: Boolean,
+    )
 
     /**
      * Retrieves a password or other generic data from the secure store.
@@ -78,7 +85,10 @@ interface KeyManagerInterface : AutoCloseable {
      * @param password updated password.
      * @param name name of the secure data to update.
      */
-    fun updatePassword(password: ByteArray, name: String)
+    fun updatePassword(
+        password: ByteArray,
+        name: String,
+    )
 
     /**
      * Generates and securely stores a symmetric key,
@@ -97,7 +107,10 @@ interface KeyManagerInterface : AutoCloseable {
      * @throws KeyManagerException on failure which might contain a java.security exception.
      */
     @Throws(KeyManagerException::class)
-    fun generateSymmetricKey(name: String, isExportable: Boolean)
+    fun generateSymmetricKey(
+        name: String,
+        isExportable: Boolean,
+    )
 
     /**
      * Adds a symmetric key to the secure store.
@@ -107,7 +120,10 @@ interface KeyManagerInterface : AutoCloseable {
      * @throws KeyManagerException on failure which might contain a java.security exception.
      */
     @Throws(KeyManagerException::class)
-    fun addSymmetricKey(key: ByteArray, name: String)
+    fun addSymmetricKey(
+        key: ByteArray,
+        name: String,
+    )
 
     /**
      * Adds a symmetric key to the secure store.
@@ -118,7 +134,11 @@ interface KeyManagerInterface : AutoCloseable {
      * @throws KeyManagerException on failure which might contain a java.security exception.
      */
     @Throws(KeyManagerException::class)
-    fun addSymmetricKey(key: ByteArray, name: String, isExportable: Boolean)
+    fun addSymmetricKey(
+        key: ByteArray,
+        name: String,
+        isExportable: Boolean,
+    )
 
     /**
      * Retrieves a symmetric key from the secure store.
@@ -148,7 +168,10 @@ interface KeyManagerInterface : AutoCloseable {
      * @throws KeyManagerException on failure which might contain a java.security exception.
      */
     @Throws(KeyManagerException::class)
-    fun encryptWithSymmetricKey(name: String, data: ByteArray): ByteArray
+    fun encryptWithSymmetricKey(
+        name: String,
+        data: ByteArray,
+    ): ByteArray
 
     /**
      * Encrypts the given data with the specified symmetric key stored in the secure store.
@@ -176,7 +199,11 @@ interface KeyManagerInterface : AutoCloseable {
      * @throws KeyManagerException on failure which might contain a java.security exception.
      */
     @Throws(KeyManagerException::class)
-    fun encryptWithSymmetricKey(name: String, data: ByteArray, iv: ByteArray): ByteArray
+    fun encryptWithSymmetricKey(
+        name: String,
+        data: ByteArray,
+        iv: ByteArray,
+    ): ByteArray
 
     /**
      * Encrypts the given data with the specified symmetric key stored in the secure store.
@@ -205,7 +232,10 @@ interface KeyManagerInterface : AutoCloseable {
      * @throws KeyManagerException on failure which might contain a java.security exception.
      */
     @Throws(KeyManagerException::class)
-    fun encryptWithSymmetricKey(key: ByteArray, data: ByteArray): ByteArray
+    fun encryptWithSymmetricKey(
+        key: ByteArray,
+        data: ByteArray,
+    ): ByteArray
 
     /**
      * Encrypts the given data with the specified symmetric key stored in the secure store.
@@ -233,7 +263,11 @@ interface KeyManagerInterface : AutoCloseable {
      * @throws KeyManagerException on failure which might contain a java.security exception.
      */
     @Throws(KeyManagerException::class)
-    fun encryptWithSymmetricKey(key: ByteArray, data: ByteArray, iv: ByteArray): ByteArray
+    fun encryptWithSymmetricKey(
+        key: ByteArray,
+        data: ByteArray,
+        iv: ByteArray,
+    ): ByteArray
 
     /**
      * Encrypts the given data with the specified symmetric key stored in the secure store.
@@ -262,7 +296,10 @@ interface KeyManagerInterface : AutoCloseable {
      * @throws KeyManagerException on failure which might contain a java.security exception.
      */
     @Throws(KeyManagerException::class)
-    fun decryptWithSymmetricKey(name: String, data: ByteArray): ByteArray
+    fun decryptWithSymmetricKey(
+        name: String,
+        data: ByteArray,
+    ): ByteArray
 
     /**
      * Decrypts the given data with the specified symmetric key stored in the secure store.
@@ -289,7 +326,10 @@ interface KeyManagerInterface : AutoCloseable {
      * @throws KeyManagerException on failure which might contain a java.security exception.
      */
     @Throws(KeyManagerException::class)
-    fun decryptWithSymmetricKey(name: String, stream: InputStream): InputStream
+    fun decryptWithSymmetricKey(
+        name: String,
+        stream: InputStream,
+    ): InputStream
 
     /**
      * Decrypts the given data stream with the specified symmetric key stored in the secure store.
@@ -317,7 +357,11 @@ interface KeyManagerInterface : AutoCloseable {
      * @throws KeyManagerException on failure which might contain a java.security exception.
      */
     @Throws(KeyManagerException::class)
-    fun decryptWithSymmetricKey(name: String, data: ByteArray, iv: ByteArray): ByteArray
+    fun decryptWithSymmetricKey(
+        name: String,
+        data: ByteArray,
+        iv: ByteArray,
+    ): ByteArray
 
     /**
      * Decrypts the given data with the specified symmetric key stored in the secure store.
@@ -347,7 +391,11 @@ interface KeyManagerInterface : AutoCloseable {
      * @throws KeyManagerException on failure which might contain a java.security exception.
      */
     @Throws(KeyManagerException::class)
-    fun decryptWithSymmetricKey(name: String, stream: InputStream, iv: ByteArray): InputStream
+    fun decryptWithSymmetricKey(
+        name: String,
+        stream: InputStream,
+        iv: ByteArray,
+    ): InputStream
 
     /**
      * Decrypts the given data stream with the specified symmetric key stored in the secure store.
@@ -376,7 +424,10 @@ interface KeyManagerInterface : AutoCloseable {
      * @throws KeyManagerException on failure which might contain a java.security exception.
      */
     @Throws(KeyManagerException::class)
-    fun decryptWithSymmetricKey(key: ByteArray, data: ByteArray): ByteArray
+    fun decryptWithSymmetricKey(
+        key: ByteArray,
+        data: ByteArray,
+    ): ByteArray
 
     /**
      * Decrypts the given data with the specified symmetric key stored in the secure store.
@@ -403,7 +454,10 @@ interface KeyManagerInterface : AutoCloseable {
      * @throws KeyManagerException on failure which might contain a java.security exception.
      */
     @Throws(KeyManagerException::class)
-    fun decryptWithSymmetricKey(key: ByteArray, source: InputStream): InputStream
+    fun decryptWithSymmetricKey(
+        key: ByteArray,
+        source: InputStream,
+    ): InputStream
 
     /**
      * Decrypts the given data source with the given symmetric key on the fly.
@@ -431,7 +485,11 @@ interface KeyManagerInterface : AutoCloseable {
      * @throws KeyManagerException on failure which might contain a java.security exception.
      */
     @Throws(KeyManagerException::class)
-    fun decryptWithSymmetricKey(key: ByteArray, data: ByteArray, iv: ByteArray): ByteArray
+    fun decryptWithSymmetricKey(
+        key: ByteArray,
+        data: ByteArray,
+        iv: ByteArray,
+    ): ByteArray
 
     /**
      * Decrypts the given data stream with the given symmetric key.
@@ -461,7 +519,11 @@ interface KeyManagerInterface : AutoCloseable {
      * @throws KeyManagerException on failure which might contain a java.security exception.
      */
     @Throws(KeyManagerException::class)
-    fun decryptWithSymmetricKey(key: ByteArray, stream: InputStream, iv: ByteArray): InputStream
+    fun decryptWithSymmetricKey(
+        key: ByteArray,
+        stream: InputStream,
+        iv: ByteArray,
+    ): InputStream
 
     /**
      * Decrypts the given data stream with the given symmetric key.
@@ -501,7 +563,11 @@ interface KeyManagerInterface : AutoCloseable {
      * @throws KeyManagerException if the key could not be created.
      */
     @Throws(KeyManagerException::class)
-    fun createSymmetricKeyFromPassword(password: String, salt: ByteArray, rounds: Int): ByteArray
+    fun createSymmetricKeyFromPassword(
+        password: String,
+        salt: ByteArray,
+        rounds: Int,
+    ): ByteArray
 
     /**
      * Creates a symmetric key from the specified password.
@@ -562,7 +628,10 @@ interface KeyManagerInterface : AutoCloseable {
      * @throws KeyManagerException on failure which might contain a java.security exception.
      */
     @Throws(KeyManagerException::class)
-    fun generateKeyPair(name: String, isExportable: Boolean)
+    fun generateKeyPair(
+        name: String,
+        isExportable: Boolean,
+    )
 
     /**
      * Adds a private key to the secure store.
@@ -572,7 +641,10 @@ interface KeyManagerInterface : AutoCloseable {
      * @throws KeyManagerException on failure which might contain a java.security exception.
      */
     @Throws(KeyManagerException::class)
-    fun addPrivateKey(key: ByteArray, name: String)
+    fun addPrivateKey(
+        key: ByteArray,
+        name: String,
+    )
 
     /**
      * Adds a private key to the secure store.
@@ -583,7 +655,11 @@ interface KeyManagerInterface : AutoCloseable {
      * @throws KeyManagerException on failure which might contain a java.security exception.
      */
     @Throws(KeyManagerException::class)
-    fun addPrivateKey(key: ByteArray, name: String, isExportable: Boolean)
+    fun addPrivateKey(
+        key: ByteArray,
+        name: String,
+        isExportable: Boolean,
+    )
 
     /**
      * Retrieves a private key from the secure store.
@@ -613,7 +689,10 @@ interface KeyManagerInterface : AutoCloseable {
      * @throws KeyManagerException on failure which might contain a java.security exception.
      */
     @Throws(KeyManagerException::class)
-    fun addPublicKey(key: ByteArray, name: String)
+    fun addPublicKey(
+        key: ByteArray,
+        name: String,
+    )
 
     /**
      * Add a public key to the secure store.
@@ -624,7 +703,11 @@ interface KeyManagerInterface : AutoCloseable {
      * @throws KeyManagerException on failure which might contain a java.security exception.
      */
     @Throws(KeyManagerException::class)
-    fun addPublicKey(key: ByteArray, name: String, isExportable: Boolean)
+    fun addPublicKey(
+        key: ByteArray,
+        name: String,
+        isExportable: Boolean,
+    )
 
     /**
      * Add a public key to the secure store from PEM encoded RSAPublicKey.
@@ -635,7 +718,11 @@ interface KeyManagerInterface : AutoCloseable {
      * @throws KeyManagerException on failure which might contain a java.security exception.
      */
     @Throws(KeyManagerException::class)
-    fun addPublicKeyFromPEM(key: String, name: String, isExportable: Boolean)
+    fun addPublicKeyFromPEM(
+        key: String,
+        name: String,
+        isExportable: Boolean,
+    )
 
     /**
      * Retrieves a public key from the secure store.
@@ -684,7 +771,11 @@ interface KeyManagerInterface : AutoCloseable {
      * @throws KeyManagerException on failure which might contain a java.security exception.
      */
     @Throws(KeyManagerException::class)
-    fun addKeyPair(privateKey: ByteArray, publicKey: ByteArray, name: String)
+    fun addKeyPair(
+        privateKey: ByteArray,
+        publicKey: ByteArray,
+        name: String,
+    )
 
     /**
      * Adds a key pair to the secure store.
@@ -738,7 +829,10 @@ interface KeyManagerInterface : AutoCloseable {
      * @throws KeyManagerException on failure which might contain a java.security exception.
      */
     @Throws(KeyManagerException::class)
-    fun generateSignatureWithPrivateKey(name: String, data: ByteArray): ByteArray
+    fun generateSignatureWithPrivateKey(
+        name: String,
+        data: ByteArray,
+    ): ByteArray
 
     /**
      * Verifies the signature for the given data.
@@ -765,7 +859,10 @@ interface KeyManagerInterface : AutoCloseable {
      * @throws KeyManagerException which might contain an exception from java.security.
      */
     @Throws(KeyManagerException::class)
-    fun encryptWithPublicKey(name: String, data: ByteArray): ByteArray
+    fun encryptWithPublicKey(
+        name: String,
+        data: ByteArray,
+    ): ByteArray
 
     /**
      * Encrypts the given data with the specified public key.
@@ -798,9 +895,7 @@ interface KeyManagerInterface : AutoCloseable {
         key: ByteArray,
         data: ByteArray,
         algorithm: PublicKeyEncryptionAlgorithm,
-    ): ByteArray {
-        return encryptWithPublicKey(key, data, PublicKeyFormat.RSA_PUBLIC_KEY, algorithm)
-    }
+    ): ByteArray = encryptWithPublicKey(key, data, PublicKeyFormat.RSA_PUBLIC_KEY, algorithm)
 
     /**
      * Encrypts the given data with the specified public key. The public key data be in either
@@ -830,7 +925,10 @@ interface KeyManagerInterface : AutoCloseable {
      * @throws KeyManagerException which might contain an exception from java.security.
      */
     @Throws(KeyManagerException::class)
-    fun decryptWithPrivateKey(name: String, data: ByteArray): ByteArray
+    fun decryptWithPrivateKey(
+        name: String,
+        data: ByteArray,
+    ): ByteArray
 
     /**
      * Decrypts the given data with the specified private key.

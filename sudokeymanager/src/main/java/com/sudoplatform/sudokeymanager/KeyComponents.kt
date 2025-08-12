@@ -11,14 +11,11 @@ package com.sudoplatform.sudokeymanager
 data class KeyComponents(
     /** Key data.  */
     var key: ByteArray = ByteArray(0),
-
     /** Salt used during the key generation.  */
     var salt: ByteArray = ByteArray(0),
-
     /** Number of pseudo-random rounds used during the key generation.  */
     @JvmField
     var rounds: Int = 0,
-
     /** Key name (aka alias)  */
     var name: String = "",
     var keyType: KeyType = KeyType.SYMMETRIC_KEY,

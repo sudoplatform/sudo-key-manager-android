@@ -16,7 +16,9 @@ import java.util.Objects
 /**
  * KeyManager store implementation using AndroidSQLiteStore.
  */
-class AndroidSQLiteStore : SQLiteOpenHelper, StoreInterface {
+class AndroidSQLiteStore :
+    SQLiteOpenHelper,
+    StoreInterface {
     // Delegate for encrypting and decrypting keys.
     private var secureKeyDelegate: SecureKeyDelegateInterface? = null
 
@@ -82,12 +84,20 @@ class AndroidSQLiteStore : SQLiteOpenHelper, StoreInterface {
         db.execSQL(StoreSchema.Keys.CREATE_TABLE)
     }
 
-    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+    override fun onUpgrade(
+        db: SQLiteDatabase,
+        oldVersion: Int,
+        newVersion: Int,
+    ) {
         db.execSQL(SQL_DROP_TABLE)
         onCreate(db)
     }
 
-    override fun onDowngrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+    override fun onDowngrade(
+        db: SQLiteDatabase,
+        oldVersion: Int,
+        newVersion: Int,
+    ) {
         onUpgrade(db, oldVersion, newVersion)
     }
 
@@ -118,14 +128,21 @@ class AndroidSQLiteStore : SQLiteOpenHelper, StoreInterface {
         }
     }
 
-    override fun updateKey(keyBytes: ByteArray, name: String, type: KeyType) {
+    override fun updateKey(
+        keyBytes: ByteArray,
+        name: String,
+        type: KeyType,
+    ) {
         Objects.requireNonNull(keyBytes, "keyBytes can't be null.")
         Objects.requireNonNull(name, NAME_CANT_BE_NULL)
         Objects.requireNonNull(type, TYPE_CANT_BE_NULL)
     }
 
     @Throws(KeyManagerException::class)
-    override fun getKey(name: String, type: KeyType): ByteArray? {
+    override fun getKey(
+        name: String,
+        type: KeyType,
+    ): ByteArray? {
         Objects.requireNonNull(name, NAME_CANT_BE_NULL)
         Objects.requireNonNull(type, TYPE_CANT_BE_NULL)
         var keyBytes: ByteArray? = null
@@ -135,20 +152,21 @@ class AndroidSQLiteStore : SQLiteOpenHelper, StoreInterface {
             StoreSchema.Keys.COLUMN_NAME_NAME + " = ? AND " + StoreSchema.Keys.COLUMN_NAME_TYPE + " = ?"
         val selectionArgs = arrayOf(toNamespacedName(name), type.value.toString())
         try {
-            db.query(
-                StoreSchema.Keys.TABLE_NAME,
-                columns,
-                selection,
-                selectionArgs,
-                null,
-                null,
-                null,
-            ).use { cursor ->
-                if (cursor.moveToNext()) {
-                    keyBytes =
-                        cursor.getBlob(cursor.getColumnIndexOrThrow(StoreSchema.Keys.COLUMN_NAME_DATA))
+            db
+                .query(
+                    StoreSchema.Keys.TABLE_NAME,
+                    columns,
+                    selection,
+                    selectionArgs,
+                    null,
+                    null,
+                    null,
+                ).use { cursor ->
+                    if (cursor.moveToNext()) {
+                        keyBytes =
+                            cursor.getBlob(cursor.getColumnIndexOrThrow(StoreSchema.Keys.COLUMN_NAME_DATA))
+                    }
                 }
-            }
         } catch (e: Exception) {
             throw StoreException("Failed to retrieve the key.", e)
         }
@@ -159,7 +177,10 @@ class AndroidSQLiteStore : SQLiteOpenHelper, StoreInterface {
     }
 
     @Throws(KeyManagerException::class)
-    override fun deleteKey(name: String, type: KeyType) {
+    override fun deleteKey(
+        name: String,
+        type: KeyType,
+    ) {
         Objects.requireNonNull(name, NAME_CANT_BE_NULL)
         Objects.requireNonNull(type, TYPE_CANT_BE_NULL)
         val db = this.writableDatabase
@@ -189,9 +210,7 @@ class AndroidSQLiteStore : SQLiteOpenHelper, StoreInterface {
         }
     }
 
-    override fun isExportable(): Boolean {
-        return true
-    }
+    override fun isExportable(): Boolean = true
 
     override fun setSecureKeyDelegate(secureKeyDelegate: SecureKeyDelegateInterface) {
         this.secureKeyDelegate = secureKeyDelegate
@@ -210,37 +229,39 @@ class AndroidSQLiteStore : SQLiteOpenHelper, StoreInterface {
         val aliases: MutableSet<String> = HashSet()
         if (keyNamespace != null) {
             try {
-                db.query(
-                    StoreSchema.Keys.TABLE_NAME,
-                    columns,
-                    StoreSchema.Keys.COLUMN_NAME_NAME + " LIKE ?",
-                    arrayOf(keyNamespace + ".%"),
-                    null,
-                    null,
-                    null,
-                ).use { cursor ->
-                    while (cursor.moveToNext()) {
-                        aliases.add(cursor.getString(0).substring((keyNamespace + ".").length))
+                db
+                    .query(
+                        StoreSchema.Keys.TABLE_NAME,
+                        columns,
+                        StoreSchema.Keys.COLUMN_NAME_NAME + " LIKE ?",
+                        arrayOf(keyNamespace + ".%"),
+                        null,
+                        null,
+                        null,
+                    ).use { cursor ->
+                        while (cursor.moveToNext()) {
+                            aliases.add(cursor.getString(0).substring((keyNamespace + ".").length))
+                        }
                     }
-                }
             } catch (e: Exception) {
                 throw StoreException("Failed to retrieve key aliases.", e)
             }
         } else {
             try {
-                db.query(
-                    StoreSchema.Keys.TABLE_NAME,
-                    columns,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                ).use { cursor ->
-                    while (cursor.moveToNext()) {
-                        aliases.add(cursor.getString(0))
+                db
+                    .query(
+                        StoreSchema.Keys.TABLE_NAME,
+                        columns,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                    ).use { cursor ->
+                        while (cursor.moveToNext()) {
+                            aliases.add(cursor.getString(0))
+                        }
                     }
-                }
             } catch (e: Exception) {
                 throw StoreException("Failed to retrieve key aliases.", e)
             }
@@ -248,9 +269,7 @@ class AndroidSQLiteStore : SQLiteOpenHelper, StoreInterface {
         return aliases
     }
 
-    private fun toNamespacedName(name: String): String {
-        return if (keyNamespace != null) "$keyNamespace.$name" else name
-    }
+    private fun toNamespacedName(name: String): String = if (keyNamespace != null) "$keyNamespace.$name" else name
 
     companion object {
         // Database name,

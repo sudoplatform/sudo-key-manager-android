@@ -59,7 +59,10 @@ object SecurityProviders {
     }
 
     @JvmStatic
-    fun getProviderIndex(providers: Array<Provider>, providerName: String): Int {
+    fun getProviderIndex(
+        providers: Array<Provider>,
+        providerName: String,
+    ): Int {
         for (i in providers.indices) {
             if (providerName == providers[i].name) {
                 return i

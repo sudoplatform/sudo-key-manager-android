@@ -91,7 +91,10 @@ interface SecureKeyArchiveInterface {
      * @param type the key type.
      * @return true if the specified key exists in the archive.
      */
-    fun containsKey(name: String, type: KeyType): Boolean
+    fun containsKey(
+        name: String,
+        type: KeyType,
+    ): Boolean
 
     /**
      * Retrieves the specified key data from the archive. The archive must
@@ -101,21 +104,28 @@ interface SecureKeyArchiveInterface {
      * @param type the key type.
      * @return a byte array containing the specified key data or null if it was not found.
      */
-    fun getKeyData(name: String, type: KeyType): ByteArray?
-    /** @return the Key manager used for managing keys and performing cryptographic operations.
-     */
+    fun getKeyData(
+        name: String,
+        type: KeyType,
+    ): ByteArray?
+
     /**
      * Sets the Key manager used for managing keys and performing cryptographic operations.
      *
      * @param keyManager the Key manager used for managing keys and performing cryptographic operations.
+     *
+     * @return the Key manager used for managing keys and performing cryptographic operations.
+     *
      */
     var keyManager: KeyManagerInterface
-    /** @return the key names to exclude from the archive in an unmodifiable set.
-     */
+
     /**
      * Sets the key names to exclude from the archive.
      *
      * @param excludedKeys the key names to exclude from the archive.
+     *
+     * @return the key names to exclude from the archive in an unmodifiable set.
+     *
      */
     var excludedKeys: MutableSet<String>
 

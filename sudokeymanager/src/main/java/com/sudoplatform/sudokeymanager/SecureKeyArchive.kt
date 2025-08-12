@@ -5,6 +5,7 @@
  */
 package com.sudoplatform.sudokeymanager
 
+import android.annotation.SuppressLint
 import androidx.annotation.Keep
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
@@ -54,12 +55,11 @@ class SecureKeyArchive private constructor(
         SECURE,
         ;
 
-        override fun toString(): String {
-            return when (this) {
+        override fun toString(): String =
+            when (this) {
                 SECURE -> "Secure"
                 INSECURE -> "Insecure"
             }
-        }
     }
 
     private var keyArchive: KeyArchive? = null
@@ -85,11 +85,12 @@ class SecureKeyArchive private constructor(
     private val gson: Gson
 
     init {
-        gson = GsonBuilder()
-            .registerTypeAdapter(KeyType::class.java, KeyTypeJsonAdapter())
-            .registerTypeAdapter(KeyArchive::class.java, KeyArchiveDeserializer())
-            .disableHtmlEscaping()
-            .create()
+        gson =
+            GsonBuilder()
+                .registerTypeAdapter(KeyType::class.java, KeyTypeJsonAdapter())
+                .registerTypeAdapter(KeyArchive::class.java, KeyArchiveDeserializer())
+                .disableHtmlEscaping()
+                .create()
     }
 
     private constructor(
@@ -137,11 +138,12 @@ class SecureKeyArchive private constructor(
     @Throws(IOException::class)
     private fun zip(data: ByteArray): ByteArray {
         val bos = ByteArrayOutputStream(data.size)
-        val gzos: GZIPOutputStream = object : GZIPOutputStream(bos) {
-            init {
-                def.setLevel(Deflater.BEST_COMPRESSION)
+        val gzos: GZIPOutputStream =
+            object : GZIPOutputStream(bos) {
+                init {
+                    def.setLevel(Deflater.BEST_COMPRESSION)
+                }
             }
-        }
         gzos.write(data)
         gzos.close()
         bos.close()
@@ -161,14 +163,15 @@ class SecureKeyArchive private constructor(
         }
         if (this.version == ARCHIVE_VERSION_V3) {
             // V3 archive is always gzip compressed so we need decompress it first.
-            val unzipped: ByteArray = try {
-                this.unzip(archiveData)
-            } catch (e: IOException) {
-                throw SecureKeyArchiveException(
-                    SecureKeyArchiveException.MALFORMED_ARCHIVEDATA,
-                    "Archive data is not a valid gzipped data: " + e.message,
-                )
-            }
+            val unzipped: ByteArray =
+                try {
+                    this.unzip(archiveData)
+                } catch (e: IOException) {
+                    throw SecureKeyArchiveException(
+                        SecureKeyArchiveException.MALFORMED_ARCHIVEDATA,
+                        "Archive data is not a valid gzipped data: " + e.message,
+                    )
+                }
             val keyArchiveJson = String(unzipped, UTF8)
             keyArchive = gson.fromJson(keyArchiveJson, KeyArchive::class.java)
             if (keyArchive == null) {
@@ -242,34 +245,40 @@ class SecureKeyArchive private constructor(
                     // formats.
                     var keyData = keyComponents.key
                     if (keyComponents.keyType === KeyType.PUBLIC_KEY) {
-                        val rsaPublicKey = RSAPublicKey.getInstance(
-                            keyComponents.key,
-                        )
-                        val algorithmIdentifier = AlgorithmIdentifier(
-                            PKCSObjectIdentifiers.rsaEncryption,
-                            DERNull.INSTANCE,
-                        )
-                        keyData = try {
-                            val subjectPublicKeyInfo =
-                                SubjectPublicKeyInfo(algorithmIdentifier, rsaPublicKey)
-                            subjectPublicKeyInfo.encoded
-                        } catch (e: Exception) {
-                            throw KeyManagerException(PUBLIC_KEY_CONVERSION_ERROR_MSG + e.message)
-                        }
+                        val rsaPublicKey =
+                            RSAPublicKey.getInstance(
+                                keyComponents.key,
+                            )
+                        val algorithmIdentifier =
+                            AlgorithmIdentifier(
+                                PKCSObjectIdentifiers.rsaEncryption,
+                                DERNull.INSTANCE,
+                            )
+                        keyData =
+                            try {
+                                val subjectPublicKeyInfo =
+                                    SubjectPublicKeyInfo(algorithmIdentifier, rsaPublicKey)
+                                subjectPublicKeyInfo.encoded
+                            } catch (e: Exception) {
+                                throw KeyManagerException(PUBLIC_KEY_CONVERSION_ERROR_MSG + e.message)
+                            }
                     } else if (keyComponents.keyType === KeyType.PRIVATE_KEY) {
-                        val rsaPrivateKey = RSAPrivateKey.getInstance(
-                            keyComponents.key,
-                        )
-                        val algorithmIdentifier = AlgorithmIdentifier(
-                            PKCSObjectIdentifiers.rsaEncryption,
-                            DERNull.INSTANCE,
-                        )
-                        keyData = try {
-                            val privateKeyInfo = PrivateKeyInfo(algorithmIdentifier, rsaPrivateKey)
-                            privateKeyInfo.encoded
-                        } catch (e: Exception) {
-                            throw KeyManagerException(PRIVATE_KEY_CONVERSION_ERROR_MSG + e.message)
-                        }
+                        val rsaPrivateKey =
+                            RSAPrivateKey.getInstance(
+                                keyComponents.key,
+                            )
+                        val algorithmIdentifier =
+                            AlgorithmIdentifier(
+                                PKCSObjectIdentifiers.rsaEncryption,
+                                DERNull.INSTANCE,
+                            )
+                        keyData =
+                            try {
+                                val privateKeyInfo = PrivateKeyInfo(algorithmIdentifier, rsaPrivateKey)
+                                privateKeyInfo.encoded
+                            } catch (e: Exception) {
+                                throw KeyManagerException(PRIVATE_KEY_CONVERSION_ERROR_MSG + e.message)
+                            }
                     }
                     keys.add(
                         KeyInfo.make(
@@ -312,11 +321,12 @@ class SecureKeyArchive private constructor(
                 }
                 when (keyInfo.Type) {
                     KeyType.PASSWORD -> keyManager.addPassword(keyInfo.data, keyInfo.Name, true)
-                    KeyType.SYMMETRIC_KEY -> keyManager.addSymmetricKey(
-                        keyInfo.data,
-                        keyInfo.Name,
-                        true,
-                    )
+                    KeyType.SYMMETRIC_KEY ->
+                        keyManager.addSymmetricKey(
+                            keyInfo.data,
+                            keyInfo.Name,
+                            true,
+                        )
 
                     KeyType.PRIVATE_KEY, KeyType.PUBLIC_KEY -> {
                         // Collect the public and private keys so they can be matched up into pairs
@@ -352,7 +362,10 @@ class SecureKeyArchive private constructor(
     }
 
     @Throws(KeyManagerException::class)
-    private fun addKeyPair(keyName: String, keys: Collection<KeyInfo>) {
+    private fun addKeyPair(
+        keyName: String,
+        keys: Collection<KeyInfo>,
+    ) {
         var publicKey: KeyInfo? = null
         var privateKey: KeyInfo? = null
         for (key in keys) {
@@ -395,9 +408,10 @@ class SecureKeyArchive private constructor(
 
                 val publicKeyInfo =
                     SubjectPublicKeyInfo.getInstance(
-                        factory.generatePublic(
-                            publicKeySpec,
-                        ).encoded,
+                        factory
+                            .generatePublic(
+                                publicKeySpec,
+                            ).encoded,
                     )
                 val publicKeyPKCS1ASN1 = publicKeyInfo.parsePublicKey()
                 val publicKeyData = publicKeyPKCS1ASN1.encoded
@@ -448,14 +462,15 @@ class SecureKeyArchive private constructor(
             keyArchive!!.type = SecureKeyArchiveType.INSECURE.toString()
             keyArchive!!.keysAsList = ArrayList(keys)
             val keyArchiveJson = gson.toJson(keyArchive)
-            data = try {
-                this.zip(keyArchiveJson.toByteArray(UTF8))
-            } catch (e: IOException) {
-                throw SecureKeyArchiveException(
-                    SecureKeyArchiveException.MALFORMED_ARCHIVEDATA,
-                    "Archive data could not be compressed: " + e.message,
-                )
-            }
+            data =
+                try {
+                    this.zip(keyArchiveJson.toByteArray(UTF8))
+                } catch (e: IOException) {
+                    throw SecureKeyArchiveException(
+                        SecureKeyArchiveException.MALFORMED_ARCHIVEDATA,
+                        "Archive data could not be compressed: " + e.message,
+                    )
+                }
         }
         return data
     }
@@ -486,12 +501,13 @@ class SecureKeyArchive private constructor(
             val keyComponents = keyManager.createSymmetricKeyFromPassword(password)
             symmetricKey = keyComponents.key
             keyArchive!!.rounds = keyComponents.rounds
-            keyArchive!!.salt = String(
-                Base64.encode(
-                    keyComponents.salt,
-                ),
-                UTF8,
-            )
+            keyArchive!!.salt =
+                String(
+                    Base64.encode(
+                        keyComponents.salt,
+                    ),
+                    UTF8,
+                )
         } catch (e: KeyManagerException) {
             throw SecureKeyArchiveException(
                 SecureKeyArchiveException.INVALID_PASSWORD,
@@ -516,14 +532,15 @@ class SecureKeyArchive private constructor(
             }
         } else {
             // V3 archive requires you to zip the input to encryption.
-            keysData = try {
-                this.zip(keysData)
-            } catch (e: IOException) {
-                throw SecureKeyArchiveException(
-                    SecureKeyArchiveException.MALFORMED_ARCHIVEDATA,
-                    "Keys data could not be compressed: " + e.message,
-                )
-            }
+            keysData =
+                try {
+                    this.zip(keysData)
+                } catch (e: IOException) {
+                    throw SecureKeyArchiveException(
+                        SecureKeyArchiveException.MALFORMED_ARCHIVEDATA,
+                        "Keys data could not be compressed: " + e.message,
+                    )
+                }
             try {
                 // Random IV is not necessary for secure archives but JS SDK uses it so we need to
                 // be consistent for interop. The use of non default IV also makes V3 secure archive
@@ -559,7 +576,10 @@ class SecureKeyArchive private constructor(
      * @param type     Archive type, secure or insecure.
      * @return key archive
      */
-    private fun archiveKeys(keysJson: String, type: SecureKeyArchiveType): ByteArray {
+    private fun archiveKeys(
+        keysJson: String,
+        type: SecureKeyArchiveType,
+    ): ByteArray {
         // add values to archive
         keyArchive!!.type = type.toString()
         keyArchive!!.keysAsString = keysJson
@@ -620,15 +640,16 @@ class SecureKeyArchive private constructor(
             )
         }
         val salt = Base64.decode(keyArchive!!.salt)
-        val symmetricKey: ByteArray = try {
-            keyManager.createSymmetricKeyFromPassword(password, salt, keyArchive!!.rounds)
-        } catch (e: KeyManagerException) {
-            throw SecureKeyArchiveException(
-                SecureKeyArchiveException.INVALID_PASSWORD,
-                "Unable to create a key from the password",
-                e,
-            )
-        }
+        val symmetricKey: ByteArray =
+            try {
+                keyManager.createSymmetricKeyFromPassword(password, salt, keyArchive!!.rounds)
+            } catch (e: KeyManagerException) {
+                throw SecureKeyArchiveException(
+                    SecureKeyArchiveException.INVALID_PASSWORD,
+                    "Unable to create a key from the password",
+                    e,
+                )
+            }
         try {
             // decrypt payload and load keys when finished
             var iv: ByteArray? = null
@@ -636,21 +657,23 @@ class SecureKeyArchive private constructor(
                 iv = Base64.decode(keyArchive!!.iv)
             }
             var keyDataClear: ByteArray?
-            keyDataClear = if (iv != null) {
-                keyManager.decryptWithSymmetricKey(symmetricKey, keyDataEncrypted, iv)
-            } else {
-                keyManager.decryptWithSymmetricKey(symmetricKey, keyDataEncrypted)
-            }
+            keyDataClear =
+                if (iv != null) {
+                    keyManager.decryptWithSymmetricKey(symmetricKey, keyDataEncrypted, iv)
+                } else {
+                    keyManager.decryptWithSymmetricKey(symmetricKey, keyDataEncrypted)
+                }
             if (this.version == ARCHIVE_VERSION_V3) {
                 // V3 encrypted archive is zipped twice so we need to unzip one more time.
-                keyDataClear = try {
-                    this.unzip(keyDataClear)
-                } catch (e: IOException) {
-                    throw SecureKeyArchiveException(
-                        SecureKeyArchiveException.MALFORMED_ARCHIVEDATA,
-                        "Key data is not a valid gzipped data: " + e.message,
-                    )
-                }
+                keyDataClear =
+                    try {
+                        this.unzip(keyDataClear)
+                    } catch (e: IOException) {
+                        throw SecureKeyArchiveException(
+                            SecureKeyArchiveException.MALFORMED_ARCHIVEDATA,
+                            "Key data is not a valid gzipped data: " + e.message,
+                        )
+                    }
             }
             val keyArrayJson = String(keyDataClear!!)
             loadKeysFromDecodedPayload(keyArrayJson)
@@ -697,11 +720,12 @@ class SecureKeyArchive private constructor(
      */
     @Throws(SecureKeyArchiveException::class)
     private fun loadKeysFromDecodedPayload(keyArrayJson: String) {
-        val keyInfoArray = gson.fromJson(keyArrayJson, Array<KeyInfo>::class.java)
-            ?: throw SecureKeyArchiveException(
-                SecureKeyArchiveException.MALFORMED_KEYSET_DATA,
-                "Unable to deserialise decrypted keys from the archive",
-            )
+        val keyInfoArray =
+            gson.fromJson(keyArrayJson, Array<KeyInfo>::class.java)
+                ?: throw SecureKeyArchiveException(
+                    SecureKeyArchiveException.MALFORMED_KEYSET_DATA,
+                    "Unable to deserialise decrypted keys from the archive",
+                )
         keys.clear()
         for (keyInfo in keyInfoArray) {
             keyInfo.data = Base64.decode(keyInfo.base64Data)
@@ -726,11 +750,15 @@ class SecureKeyArchive private constructor(
      * @param type the key type.
      * @return true if the specified key exists in the archive.
      */
-    override fun containsKey(name: String, type: KeyType): Boolean {
-        return findKey(name, type) != null
-    }
+    override fun containsKey(
+        name: String,
+        type: KeyType,
+    ): Boolean = findKey(name, type) != null
 
-    private fun findKey(name: String, type: KeyType): KeyInfo? {
+    private fun findKey(
+        name: String,
+        type: KeyType,
+    ): KeyInfo? {
         for (keyInfo in keys) {
             if (keyInfo.Name == name && keyInfo.Type === type) {
                 return keyInfo
@@ -747,20 +775,20 @@ class SecureKeyArchive private constructor(
      * @param type the key type.
      * @return a byte array containing the specified key data or null if it was not found.
      */
-    override fun getKeyData(name: String, type: KeyType): ByteArray? {
-        return findKey(name, type)?.data
-    }
+    override fun getKeyData(
+        name: String,
+        type: KeyType,
+    ): ByteArray? = findKey(name, type)?.data
 
     /**
      * @return the meta-information associated with this archive.
      */
-    override fun getMetaInfo(): Map<String, String> {
-        return if (keyArchive == null) {
+    override fun getMetaInfo(): Map<String, String> =
+        if (keyArchive == null) {
             emptyMap()
         } else {
             keyArchive!!.metaInfo
         }
-    }
 
     /**
      * Sets the meta-information associated with this archive.
@@ -832,17 +860,20 @@ class SecureKeyArchive private constructor(
                 typeOfT: Type,
                 context: JsonDeserializationContext,
             ): KeyArchive {
-                val keyArchive = GsonBuilder()
-                    .disableHtmlEscaping()
-                    .create().fromJson(json, KeyArchive::class.java)
+                val keyArchive =
+                    GsonBuilder()
+                        .disableHtmlEscaping()
+                        .create()
+                        .fromJson(json, KeyArchive::class.java)
                 val jsonObject = json.asJsonObject
                 if (jsonObject.has("Keys")) {
                     val element = jsonObject["Keys"]
                     if (element.isJsonArray) {
-                        keyArchive.keysAsList = GsonBuilder()
-                            .registerTypeAdapter(KeyType::class.java, KeyTypeJsonAdapter())
-                            .create()
-                            .fromJson(element, object : TypeToken<ArrayList<KeyInfo?>?>() {}.type)
+                        keyArchive.keysAsList =
+                            GsonBuilder()
+                                .registerTypeAdapter(KeyType::class.java, KeyTypeJsonAdapter())
+                                .create()
+                                .fromJson(element, object : TypeToken<ArrayList<KeyInfo?>?>() {}.type)
                     } else {
                         keyArchive.keysAsString = element.asString
                     }
@@ -856,7 +887,10 @@ class SecureKeyArchive private constructor(
      * The JSON format of a single key within the archive when converted by Gson
      */
     @Keep
+    @Suppress("ktlint:standard:property-naming")
     private class KeyInfo {
+        // Note that our variable names here do not conform to our
+        // coding conventions because they confirm to our archive structure.
         var Version = 0
         var Synchronizable = false
         var NameSpace: String? = null
@@ -868,8 +902,9 @@ class SecureKeyArchive private constructor(
 
         @SerializedName("data")
         lateinit var data: ByteArray
-        override fun toString(): String {
-            return javaClass.simpleName + "{ Version=" + Version +
+
+        override fun toString(): String =
+            javaClass.simpleName + "{ Version=" + Version +
                 ", Synchronizable=" + Synchronizable +
                 ", NameSpace='" + NameSpace + '\'' +
                 ", Type='" + Type + '\'' +
@@ -877,10 +912,13 @@ class SecureKeyArchive private constructor(
                 ", Data='" + base64Data + '\'' +
                 ", data.len='" + (data.size) + '\'' +
                 '}'
-        }
 
         companion object {
-            fun make(name: String, keyType: KeyType, data: ByteArray): KeyInfo {
+            fun make(
+                name: String,
+                keyType: KeyType,
+                data: ByteArray,
+            ): KeyInfo {
                 val keyInfo = KeyInfo()
                 keyInfo.Name = name
                 keyInfo.Type = keyType
@@ -893,30 +931,23 @@ class SecureKeyArchive private constructor(
         }
     }
 
-    override fun toString(): String {
-        return javaClass.simpleName + "{ keyArchive=" + keyArchive +
+    override fun toString(): String =
+        javaClass.simpleName + "{ keyArchive=" + keyArchive +
             ", excludedKeys=" + excludedKeys +
             ", excludedKeyTypes=" + excludedKeyTypes +
             ", keys=" + keys +
             '}'
-    }
 
     private fun hasValue(s: String?): Boolean {
         // I would have used !TextUtils.isEmpty(s) but it isn't available in unit tests
         return !s.isNullOrEmpty()
     }
 
-    private fun hasNoValue(s: String?): Boolean {
-        return !hasValue(s)
-    }
+    private fun hasNoValue(s: String?): Boolean = !hasValue(s)
 
-    private fun hasValue(b: ByteArray?): Boolean {
-        return b != null && b.isNotEmpty()
-    }
+    private fun hasValue(b: ByteArray?): Boolean = b != null && b.isNotEmpty()
 
-    private fun hasNoValue(b: ByteArray): Boolean {
-        return !hasValue(b)
-    }
+    private fun hasNoValue(b: ByteArray): Boolean = !hasValue(b)
 
     companion object {
         /**
@@ -935,10 +966,11 @@ class SecureKeyArchive private constructor(
         private const val PRIVATE_KEY_CONVERSION_ERROR_MSG = "Failed to convert RSAPrivateKey to PrivateKeyInfo: "
 
         private val UTF8 = StandardCharsets.UTF_8
-        private val logger = Logger(
-            "SudoKeyManager",
-            AndroidUtilsLogDriver(LogLevel.INFO),
-        )
+        private val logger =
+            Logger(
+                "SudoKeyManager",
+                AndroidUtilsLogDriver(LogLevel.INFO),
+            )
 
         /**
          * Returns an instance of a SecureKeyArchiveInterface.
@@ -947,9 +979,7 @@ class SecureKeyArchive private constructor(
          * @return a secure key archive that uses the nominated key manager.
          */
         @JvmStatic
-        fun getInstance(keyManager: KeyManagerInterface): SecureKeyArchiveInterface {
-            return SecureKeyArchive(keyManager, false)
-        }
+        fun getInstance(keyManager: KeyManagerInterface): SecureKeyArchiveInterface = SecureKeyArchive(keyManager, false)
 
         /**
          * Returns an instance of a SecureKeyArchiveInterface. This method should be used for
@@ -959,9 +989,7 @@ class SecureKeyArchive private constructor(
          * @return a secure key archive that uses the nominated key manager.
          */
         @JvmStatic
-        fun getInstanceV3(keyManager: KeyManagerInterface): SecureKeyArchiveInterface {
-            return SecureKeyArchive(keyManager, true)
-        }
+        fun getInstanceV3(keyManager: KeyManagerInterface): SecureKeyArchiveInterface = SecureKeyArchive(keyManager, true)
 
         /**
          * Returns an instance of a SecureKeyArchiveInterface initaliased with the
@@ -979,9 +1007,7 @@ class SecureKeyArchive private constructor(
         fun getInstance(
             archiveData: ByteArray,
             keyManager: KeyManagerInterface,
-        ): SecureKeyArchiveInterface {
-            return SecureKeyArchive(archiveData, keyManager, false)
-        }
+        ): SecureKeyArchiveInterface = SecureKeyArchive(archiveData, keyManager, false)
 
         /**
          * Returns an instance of a SecureKeyArchiveInterface initaliased with the
@@ -1000,8 +1026,6 @@ class SecureKeyArchive private constructor(
         fun getInstanceV3(
             archiveData: ByteArray,
             keyManager: KeyManagerInterface,
-        ): SecureKeyArchiveInterface {
-            return SecureKeyArchive(archiveData, keyManager, true)
-        }
+        ): SecureKeyArchiveInterface = SecureKeyArchive(archiveData, keyManager, true)
     }
 }

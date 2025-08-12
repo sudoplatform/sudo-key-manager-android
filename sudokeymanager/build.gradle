@@ -1,16 +1,15 @@
 apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
-apply plugin: 'kotlin-kapt'
 apply plugin: "org.owasp.dependencycheck"
 
 android {
-    compileSdk 34
+    compileSdk 35
     namespace "com.sudoplatform.sudokeymanager"
     defaultConfig {
         minSdkVersion 26
-        targetSdkVersion 34
+        targetSdkVersion 35
         versionCode 1
-        versionName "8.0.0"
+        versionName "9.0.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         multiDexEnabled true
     }
@@ -68,29 +67,29 @@ android {
 
 dependencies {
     implementation "com.madgag.spongycastle:bcpkix-jdk15on:1.58.0.0"
-    implementation "com.google.code.gson:gson:2.10.1"
+    implementation "com.google.code.gson:gson:2.13.1"
     implementation "org.jetbrains.kotlin:kotlin-stdlib:${kotlinVersion}"
-    implementation "androidx.annotation:annotation:1.8.0"
+    implementation "androidx.annotation:annotation:1.9.1"
 
     // Sudo Platform
-    implementation "com.sudoplatform:sudologging:5.0.0"
+    implementation "com.sudoplatform:sudologging:6.0.0"
 
     // Unit testing
     testImplementation("junit:junit:4.13.2") {
         exclude module: 'hamcrest-core'
     }
-    testImplementation 'org.xerial:sqlite-jdbc:3.36.0.3'
-    androidTestImplementation "com.google.guava:guava:30.1.1-android"
+    testImplementation 'org.xerial:sqlite-jdbc:3.50.3.0'
+    androidTestImplementation "com.google.guava:guava:33.4.8-android"
 
     //roboelectric
-    testImplementation "org.robolectric:robolectric:4.10.3"
+    testImplementation "org.robolectric:robolectric:4.15.1"
 
     //testRunner
-    androidTestImplementation "androidx.test:runner:1.6.0"
+    androidTestImplementation "androidx.test:runner:1.7.0"
 
     //espresso
-    androidTestImplementation "androidx.test.espresso:espresso-core:3.6.0"
-    androidTestImplementation "androidx.test.ext:junit:1.2.0"
+    androidTestImplementation "androidx.test.espresso:espresso-core:3.7.0"
+    androidTestImplementation "androidx.test.ext:junit:1.3.0"
 
     // timber
     androidTestImplementation "com.jakewharton.timber:timber:5.0.1"
@@ -124,11 +123,8 @@ afterEvaluate {
         failBuildOnCVSS 0
         skipConfigurations = getConfigurationsToSkip(configurations)
 
-        cve {
-            urlModified = "https://anonyome-nist-cve-mirror.s3.amazonaws.com/nvdcve-1.1-modified.json.gz"
-            urlBase = "https://anonyome-nist-cve-mirror.s3.amazonaws.com/nvdcve-1.1-%d.json.gz"
-            startYear = 2002
-            waitTime = 0
+        nvd {
+            datafeedUrl = "https://anonyome-nist-cve-mirror.s3.amazonaws.com/"
         }
 
         analyzers {
@@ -182,7 +178,6 @@ checkLicenses.finalizedBy checkLicenseHaveRequiredFields
 apply plugin: 'org.jmailen.kotlinter'
 
 kotlinter {
-    ignoreFailures = false
     reporters = ['checkstyle', 'plain']
 }
 

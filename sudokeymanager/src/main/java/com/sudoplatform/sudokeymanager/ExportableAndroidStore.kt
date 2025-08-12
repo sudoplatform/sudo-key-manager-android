@@ -26,11 +26,6 @@ class ExportableAndroidStore : StoreInterface {
     // Exportable store to store the copies of keys that can be exported.
     private val exportableStore: StoreInterface
 
-    /**
-     * Returns Android Keystore associated with this store.
-     *
-     * @return Android Keystore.
-     */
     // Android Keystore. This is where crypto will be done so keys are not leaked into user space.
     val androidKeyStore: KeyStore
 
@@ -185,20 +180,30 @@ class ExportableAndroidStore : StoreInterface {
         }
     }
 
-    override fun updateKey(keyBytes: ByteArray, name: String, type: KeyType) {
+    override fun updateKey(
+        keyBytes: ByteArray,
+        name: String,
+        type: KeyType,
+    ) {
         Objects.requireNonNull(name, NAME_CANT_BE_NULL)
         Objects.requireNonNull(type, TYPE_CANT_BE_NULL)
     }
 
     @Throws(KeyManagerException::class)
-    override fun getKey(name: String, type: KeyType): ByteArray? {
+    override fun getKey(
+        name: String,
+        type: KeyType,
+    ): ByteArray? {
         Objects.requireNonNull(name, NAME_CANT_BE_NULL)
         Objects.requireNonNull(type, TYPE_CANT_BE_NULL)
         return exportableStore.getKey(name, type)
     }
 
     @Throws(KeyManagerException::class)
-    override fun deleteKey(name: String, type: KeyType) {
+    override fun deleteKey(
+        name: String,
+        type: KeyType,
+    ) {
         Objects.requireNonNull(name, NAME_CANT_BE_NULL)
         Objects.requireNonNull(type, TYPE_CANT_BE_NULL)
         exportableStore.deleteKey(name, type)
@@ -229,9 +234,7 @@ class ExportableAndroidStore : StoreInterface {
         }
     }
 
-    override fun isExportable(): Boolean {
-        return true
-    }
+    override fun isExportable(): Boolean = true
 
     @Throws(Exception::class)
     override fun close() {
@@ -269,9 +272,7 @@ class ExportableAndroidStore : StoreInterface {
         return aliasSet
     }
 
-    private fun toNamespacedName(name: String): String {
-        return if (keyNamespace != null) "$keyNamespace.$name" else name
-    }
+    private fun toNamespacedName(name: String): String = if (keyNamespace != null) "$keyNamespace.$name" else name
 
     companion object {
         private const val ANDROID_KEY_STORE = "AndroidKeyStore"
