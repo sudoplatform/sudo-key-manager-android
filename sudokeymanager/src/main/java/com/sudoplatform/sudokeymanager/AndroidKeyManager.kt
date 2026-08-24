@@ -298,6 +298,9 @@ class AndroidKeyManager :
             throw KeyManagerException(PRIVATE_KEY_RETRIEVAL_ERROR_MSG, e)
         } catch (e: UnrecoverableEntryException) {
             throw KeyManagerException(PRIVATE_KEY_RETRIEVAL_ERROR_MSG, e)
+        } catch (e: RuntimeException) {
+            Log.e(TAG, "Unexpected RuntimeException getting private key from AndroidKeyStore", e)
+            throw KeyManagerException(PRIVATE_KEY_RETRIEVAL_ERROR_MSG, e)
         }
         return privateKey
     }
@@ -334,6 +337,9 @@ class AndroidKeyManager :
             throw KeyManagerException(PUBLIC_KEY_RETRIEVAL_ERROR_MSG, e)
         } catch (e: UnrecoverableEntryException) {
             throw KeyManagerException(PUBLIC_KEY_RETRIEVAL_ERROR_MSG, e)
+        } catch (e: RuntimeException) {
+            Log.e(TAG, "Unexpected RuntimeException getting public key from AndroidKeyStore", e)
+            throw KeyManagerException(PUBLIC_KEY_RETRIEVAL_ERROR_MSG, e)
         }
         return publicKey
     }
@@ -352,6 +358,9 @@ class AndroidKeyManager :
         } catch (e: NoSuchAlgorithmException) {
             throw KeyManagerException(SYMMETRIC_KEY_RETRIEVAL_ERROR_MSG, e)
         } catch (e: UnrecoverableEntryException) {
+            throw KeyManagerException(SYMMETRIC_KEY_RETRIEVAL_ERROR_MSG, e)
+        } catch (e: RuntimeException) {
+            Log.e(TAG, "Unexpected RuntimeException getting symmetric key from AndroidKeyStore", e)
             throw KeyManagerException(SYMMETRIC_KEY_RETRIEVAL_ERROR_MSG, e)
         }
         return secretKey
