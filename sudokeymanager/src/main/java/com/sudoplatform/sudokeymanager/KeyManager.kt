@@ -414,13 +414,7 @@ open class KeyManager(
         key: ByteArray,
         source: InputStream,
         algorithm: SymmetricEncryptionAlgorithm,
-    ): InputStream =
-        this.decryptWithSymmetricKey(
-            key,
-            source,
-            getDefaultIV(SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256),
-            SymmetricEncryptionAlgorithm.AES_CBC_PKCS7_256,
-        )
+    ): InputStream = this.decryptWithSymmetricKey(key, source, getDefaultIV(algorithm), algorithm)
 
     @Throws(KeyManagerException::class)
     override fun decryptWithSymmetricKey(

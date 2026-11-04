@@ -124,6 +124,7 @@
         <cve>CVE-2026-56745</cve>
         <cve>CVE-2026-56746</cve>
         <cve>CVE-2026-56817</cve>
+        <cve>CVE-2026-56818</cve>
         <cve>CVE-2026-56819</cve>
         <cve>CVE-2026-56820</cve>
         <cve>CVE-2026-56821</cve>
@@ -132,9 +133,16 @@
         <cve>CVE-2026-59899</cve>
         <cve>CVE-2026-59900</cve>
         <cve>CVE-2026-59901</cve>
+        <cve>CVE-2026-59902</cve>
+        <cve>CVE-2026-59903</cve>
         <cve>CVE-2026-59919</cve>
         <cve>CVE-2026-59920</cve>
         <cve>CVE-2026-59921</cve>
+        <cve>CVE-2026-62380</cve>
+        <cve>CVE-2026-73507</cve>
+        <cve>CVE-2026-73508</cve>
+        <cve>CVE-2026-75595</cve>
+        <cve>CVE-2026-75596</cve>
     </suppress>
     <suppress until="2026-12-31">
         <notes><![CDATA[
@@ -189,6 +197,15 @@
         <packageUrl regex="true">^pkg:maven/org\.jetbrains\.dokka/.*@.*$</packageUrl>
         <cve>CVE-2020-29582</cve>
         <cve>CVE-2026-53914</cve>
+    </suppress>
+
+    <suppress until="2026-12-31">
+        <notes><![CDATA[
+   file name: freemarker-2.3.32.jar
+   Freemarker transitive dependency from Dokka plugin configurations - not part of the published library artifact
+   ]]></notes>
+        <packageUrl regex="true">^pkg:maven/org\.freemarker/freemarker@.*$</packageUrl>
+        <cve>CVE-2026-84939</cve>
     </suppress>
 
     <suppress until="2026-12-31">
