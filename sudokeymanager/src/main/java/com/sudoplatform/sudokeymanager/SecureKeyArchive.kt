@@ -13,6 +13,7 @@ import com.google.gson.JsonDeserializationContext
 import com.google.gson.JsonDeserializer
 import com.google.gson.JsonElement
 import com.google.gson.JsonParseException
+import com.google.gson.JsonPrimitive
 import com.google.gson.annotations.SerializedName
 import com.google.gson.reflect.TypeToken
 import com.sudoplatform.sudokeymanager.SecureKeyArchive.KeyArchive.KeyArchiveDeserializer
@@ -460,8 +461,7 @@ class SecureKeyArchive private constructor(
         } else {
             keyArchive!!.version = ARCHIVE_VERSION_V3
             keyArchive!!.type = SecureKeyArchiveType.INSECURE.toString()
-            keyArchive!!.keysAsList = ArrayList(keys)
-            val keyArchiveJson = gson.toJson(keyArchive)
+            val keyArchiveJson = keyArchiveJson(gson.toJsonTree(ArrayList(keys)))
             data =
                 try {
                     this.zip(keyArchiveJson.toByteArray(UTF8))
@@ -582,9 +582,17 @@ class SecureKeyArchive private constructor(
     ): ByteArray {
         // add values to archive
         keyArchive!!.type = type.toString()
-        keyArchive!!.keysAsString = keysJson
-        val keyArchiveJson = gson.toJson(keyArchive)
-        return keyArchiveJson.toByteArray(UTF8)
+        return keyArchiveJson(JsonPrimitive(keysJson)).toByteArray(UTF8)
+    }
+
+    /**
+     * The JSON of the key archive with [keys] as its `Keys`. Only the keys passed in are written, so
+     * a secure archive never carries the plaintext keys of an insecure one made earlier.
+     */
+    private fun keyArchiveJson(keys: JsonElement): String {
+        val json = gson.toJsonTree(keyArchive).asJsonObject
+        json.add(KEYS_FIELD_NAME, keys)
+        return gson.toJson(json)
     }
 
     /**
@@ -602,8 +610,14 @@ class SecureKeyArchive private constructor(
             val keyArrayJson = String(keyData)
             loadKeysFromDecodedPayload(keyArrayJson)
         } else {
+            val keysAsList =
+                keyArchive!!.keysAsList
+                    ?: throw SecureKeyArchiveException(
+                        SecureKeyArchiveException.INVALID_ARCHIVE_DATA,
+                        "The Keys in the archive are empty",
+                    )
             keys.clear()
-            for (keyInfo in keyArchive!!.keysAsList!!) {
+            for (keyInfo in keysAsList) {
                 keyInfo.data = Base64.decode(keyInfo.base64Data)
                 keys.add(keyInfo)
             }
@@ -841,7 +855,13 @@ class SecureKeyArchive private constructor(
 
         @SerializedName("Salt")
         var salt: String? = null
+
+        // The keys, held as an encoded string or as a list depending on the archive type. Both are
+        // written and read as `Keys` rather than by their field names.
+        @Transient
         var keysAsString: String? = null
+
+        @Transient
         var keysAsList: List<KeyInfo>? = null
 
         @SerializedName("IV")
@@ -866,8 +886,8 @@ class SecureKeyArchive private constructor(
                         .create()
                         .fromJson(json, KeyArchive::class.java)
                 val jsonObject = json.asJsonObject
-                if (jsonObject.has("Keys")) {
-                    val element = jsonObject["Keys"]
+                val element = KEYS_FIELD_NAMES.firstNotNullOfOrNull { jsonObject[it] }
+                if (element != null && !element.isJsonNull) {
                     if (element.isJsonArray) {
                         keyArchive.keysAsList =
                             GsonBuilder()
@@ -891,16 +911,26 @@ class SecureKeyArchive private constructor(
     private class KeyInfo {
         // Note that our variable names here do not conform to our
         // coding conventions because they confirm to our archive structure.
+        @SerializedName("Version")
         var Version = 0
+
+        @SerializedName("Synchronizable")
         var Synchronizable = false
+
+        @SerializedName("NameSpace")
         var NameSpace: String? = null
+
+        @SerializedName("Type")
         lateinit var Type: KeyType
+
+        @SerializedName("Name")
         lateinit var Name: String
 
         @SerializedName("Data")
         var base64Data: String? = null
 
-        @SerializedName("data")
+        // Decoded from `Data` when an archive is read, so it isn't written to the archive.
+        @Transient
         lateinit var data: ByteArray
 
         override fun toString(): String =
@@ -955,6 +985,16 @@ class SecureKeyArchive private constructor(
          */
         private const val ARCHIVE_VERSION_V2 = 2
         private const val ARCHIVE_VERSION_V3 = 3
+
+        /** The field that holds an archive's keys. */
+        private const val KEYS_FIELD_NAME = "Keys"
+
+        /**
+         * Fields an archive's keys are read from, in order. Releases 6.2.0 to 7.0.0 wrote them as
+         * `KeysAsList` or `KeysAsString`, and 7.1.0 to 9.0.2 as `keysAsList` or `keysAsString`.
+         */
+        private val KEYS_FIELD_NAMES =
+            listOf(KEYS_FIELD_NAME, "keysAsList", "keysAsString", "KeysAsList", "KeysAsString")
 
         /**
          * Secure key entry format version

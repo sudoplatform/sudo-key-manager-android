@@ -20,7 +20,7 @@ class KeyTypeJsonAdapter : TypeAdapter<KeyType?>() {
         out: JsonWriter,
         value: KeyType?,
     ) {
-        out.jsonValue(value!!.name)
+        out.value(value!!.name)
     }
 
     @Throws(IOException::class)
