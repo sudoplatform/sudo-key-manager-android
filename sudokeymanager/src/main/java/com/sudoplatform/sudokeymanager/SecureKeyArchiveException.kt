@@ -24,7 +24,7 @@ class SecureKeyArchiveException
         constructor(message: String?, cause: Throwable?) : this(NO_REASON, message, cause)
 
         companion object {
-            /** Indicates that duplicate keys were found while saving the keys to the secure store. */
+            /** Indicates that the archive holds more than one key with the same name and type in the key manager's namespace. */
             const val DUPLICATE_KEY = Short.MAX_VALUE.toInt()
 
             /** Indicates that unarchive or archive operation was requested but the archive was empty.  */
@@ -54,6 +54,12 @@ class SecureKeyArchiveException
              * beyond control of [SecureKeyArchiveInterface] implementation.
              */
             const val FATAL_ERROR = Short.MAX_VALUE + 8
+
+            /**
+             * Indicates that the archive has no keys in the key manager's namespace, so importing it
+             * would leave no keys. Keys with another `NameSpace`, an empty one or none are skipped.
+             */
+            const val NO_KEYS_FOR_NAMESPACE = Short.MAX_VALUE + 9
             const val NO_REASON = Short.MAX_VALUE + 99
         }
     }

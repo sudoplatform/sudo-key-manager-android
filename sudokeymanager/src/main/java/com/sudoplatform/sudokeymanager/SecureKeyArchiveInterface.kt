@@ -11,7 +11,14 @@ package com.sudoplatform.sudokeymanager
  */
 interface SecureKeyArchiveInterface {
     /**
-     * Loads keys from the secure store into the archive.
+     * The namespaces of the keys loaded or unarchived into this archive, including namespaces whose
+     * keys aren't imported. Keys with no `NameSpace` aren't counted.
+     */
+    val namespaces: Set<String>
+
+    /**
+     * Loads the key manager's keys into the archive, replacing any keys loaded or unarchived before.
+     * Each key is written with the key manager's namespace as its `NameSpace`.
      *
      * @throws KeyManagerException if the keys could not be exported.
      * @throws StoreNotExportable if the key store does not permit keys to be exported.
@@ -20,7 +27,8 @@ interface SecureKeyArchiveInterface {
     fun loadKeys()
 
     /**
-     * Saves the keys in this archive to the secure store.
+     * Replaces the key manager's keys with the keys in this archive that are in its namespace. The
+     * key manager's keys are removed only once the archive is known to hold keys for it.
      *
      * @throws SecureKeyArchiveException with one of the following reasons:
      * [SecureKeyArchiveException.ARCHIVE_EMPTY],
@@ -37,7 +45,7 @@ interface SecureKeyArchiveInterface {
      * @throws SecureKeyArchiveException with one of the following reasons:
      * [SecureKeyArchiveException.INVALID_PASSWORD],
      * [SecureKeyArchiveException.ARCHIVE_EMPTY],
-     * [SecureKeyArchiveException.FATAL_ERROR]
+     * [SecureKeyArchiveException.MALFORMED_ARCHIVEDATA]
      */
     @Throws(SecureKeyArchiveException::class)
     fun archive(password: String): ByteArray
@@ -45,34 +53,39 @@ interface SecureKeyArchiveInterface {
     /**
      * Archives, in plaintext, the keys loaded into this archive.
      *
-     * @return encrypted archive data.
+     * @return archive data.
      * @throws SecureKeyArchiveException with one of the following reasons:
      * [SecureKeyArchiveException.ARCHIVE_EMPTY],
-     * [SecureKeyArchiveException.FATAL_ERROR]
+     * [SecureKeyArchiveException.MALFORMED_ARCHIVEDATA]
      */
     @Throws(SecureKeyArchiveException::class)
     fun archive(): ByteArray
 
     /**
-     * Decrypts and unarchives the keys in this archive.
+     * Decrypts and unarchives the keys in this archive. Only keys whose `NameSpace` is the key
+     * manager's namespace are kept; keys with another `NameSpace`, an empty one or none are skipped.
      *
      * @param password the password to use to decrypt the archive.
      * @throws SecureKeyArchiveException with one of the following reasons:
      * [SecureKeyArchiveException.INVALID_PASSWORD],
-     * [SecureKeyArchiveException.ARCHIVE_EMPTY],
      * [SecureKeyArchiveException.INVALID_ARCHIVE_DATA],
-     * [SecureKeyArchiveException.FATAL_ERROR]
+     * [SecureKeyArchiveException.MALFORMED_KEYSET_DATA],
+     * [SecureKeyArchiveException.MALFORMED_ARCHIVEDATA],
+     * [SecureKeyArchiveException.NO_KEYS_FOR_NAMESPACE],
+     * [SecureKeyArchiveException.DUPLICATE_KEY]
      */
     @Throws(SecureKeyArchiveException::class)
     fun unarchive(password: String)
 
     /**
-     * Unarchives plaintext keys in this archive.
+     * Unarchives plaintext keys in this archive. Only keys whose `NameSpace` is the key manager's
+     * namespace are kept; keys with another `NameSpace`, an empty one or none are skipped.
      *
      * @throws SecureKeyArchiveException with one of the following reasons:
-     * [SecureKeyArchiveException.ARCHIVE_EMPTY],
      * [SecureKeyArchiveException.INVALID_ARCHIVE_DATA],
-     * [SecureKeyArchiveException.FATAL_ERROR]
+     * [SecureKeyArchiveException.MALFORMED_KEYSET_DATA],
+     * [SecureKeyArchiveException.NO_KEYS_FOR_NAMESPACE],
+     * [SecureKeyArchiveException.DUPLICATE_KEY]
      */
     @Throws(SecureKeyArchiveException::class)
     fun unarchive()
@@ -84,8 +97,8 @@ interface SecureKeyArchiveInterface {
 
     /**
      * Determines whether or not the archive contains the key with the
-     * specified name and type. The archive must be unarchived before the
-     * key can be searched.
+     * specified name and type in the key manager's namespace. The archive
+     * must be unarchived before the key can be searched.
      *
      * @param name the key name.
      * @param type the key type.

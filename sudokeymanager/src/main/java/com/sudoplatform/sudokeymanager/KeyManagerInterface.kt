@@ -14,6 +14,11 @@ import java.security.PublicKey
  * operations.
  */
 interface KeyManagerInterface : AutoCloseable {
+    /**
+     * The namespace this key manager keeps its keys in, and writes as `NameSpace` in key archives.
+     */
+    val namespace: String
+
     /** The public key encryption algorithms supported by KeyManagerAndroid kit  */
     enum class PublicKeyEncryptionAlgorithm {
         RSA_ECB_PKCS1,
@@ -955,7 +960,7 @@ interface KeyManagerInterface : AutoCloseable {
     fun createRandomData(size: Int): ByteArray
 
     /**
-     * Removes all keys associated with this KeyManager.
+     * Removes all keys in this KeyManager's namespace.
      *
      * @throws KeyManagerException on failure which might contain a java.security exception.
      */
@@ -973,8 +978,7 @@ interface KeyManagerInterface : AutoCloseable {
     /**
      * Export all the keys.
      *
-     * @return a [Map] with the key name as the map key and the exported key type and bytes as the value.
-     * The map may be empty but it will not be null.
+     * @return the exported keys, each with its name, type and key bytes. The list may be empty.
      * @throws StoreNotExportable if the key store does not permit keys to be exported.
      * @throws KeyManagerException if the key cannot be exported from the store.
      */

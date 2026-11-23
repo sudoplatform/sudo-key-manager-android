@@ -10,6 +10,9 @@ package com.sudoplatform.sudokeymanager
  * secure data.
  */
 interface StoreInterface : AutoCloseable {
+    /** The namespace this store keeps its keys in. */
+    val keyNamespace: String
+
     /**
      * Inserts a new key.
      *
@@ -68,7 +71,7 @@ interface StoreInterface : AutoCloseable {
     )
 
     /**
-     * Resets the store by removing all keys.
+     * Resets the store by removing all keys in its namespace.
      *
      * @throws KeyManagerException
      */
@@ -98,7 +101,7 @@ interface StoreInterface : AutoCloseable {
     fun setSecureKeyDelegate(secureKeyDelegate: SecureKeyDelegateInterface)
 
     /**
-     * Returns the names of the keys in this key store.
+     * Returns the names of the keys in this store's namespace, without the namespace prefix.
      *
      * @return set containing the key names.
      * @throws KeyManagerException if a failure occurred while fetching the key names.

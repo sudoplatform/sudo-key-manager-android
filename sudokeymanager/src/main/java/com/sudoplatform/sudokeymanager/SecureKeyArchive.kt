@@ -82,8 +82,13 @@ class SecureKeyArchive private constructor(
             field.addAll(excludedKeyTypes)
         }
 
-    private val keys: MutableSet<KeyInfo> = HashSet()
+    // The keys to archive or import, all in the key manager's namespace.
+    private val keys: MutableList<KeyInfo> = ArrayList()
+    private val archiveNamespaces: MutableSet<String> = HashSet()
     private val gson: Gson
+
+    override val namespaces: Set<String>
+        get() = archiveNamespaces.toSet()
 
     init {
         gson =
@@ -226,7 +231,10 @@ class SecureKeyArchive private constructor(
      */
     @Throws(KeyManagerException::class)
     override fun loadKeys() {
+        val namespace = keyManager.namespace
         val exportedKeys = keyManager.exportKeys()
+        keys.clear()
+        archiveNamespaces.clear()
         for (keyComponents in exportedKeys) {
             if (excludedKeys.contains(keyComponents.name) || excludedKeyTypes.contains(keyComponents.keyType)) {
                 continue
@@ -238,6 +246,7 @@ class SecureKeyArchive private constructor(
                             keyComponents.name,
                             keyComponents.keyType,
                             keyComponents.key,
+                            namespace,
                         ),
                     )
                 } else {
@@ -286,15 +295,18 @@ class SecureKeyArchive private constructor(
                             keyComponents.name,
                             keyComponents.keyType,
                             keyData,
+                            namespace,
                         ),
                     )
                 }
+                archiveNamespaces.add(namespace)
             }
         }
     }
 
     /**
-     * Saves the keys in this archive to the secure store.
+     * Replaces the key manager's keys with the keys in this archive that are in its namespace. The
+     * key manager's keys are removed only once the archive is known to hold keys for it.
      *
      * @throws SecureKeyArchiveException with one of the following reasons:
      * [SecureKeyArchiveException.ARCHIVE_EMPTY],
@@ -437,10 +449,10 @@ class SecureKeyArchive private constructor(
     /**
      * Archives, in plaintext, the keys loaded into this archive.
      *
-     * @return encrypted archive data.
+     * @return archive data.
      * @throws SecureKeyArchiveException with one of the following reasons:
      * [SecureKeyArchiveException.ARCHIVE_EMPTY],
-     * [SecureKeyArchiveException.FATAL_ERROR]
+     * [SecureKeyArchiveException.MALFORMED_ARCHIVEDATA]
      */
     @Throws(SecureKeyArchiveException::class)
     override fun archive(): ByteArray {
@@ -483,7 +495,7 @@ class SecureKeyArchive private constructor(
      * @throws SecureKeyArchiveException with one of the following reasons:
      * [SecureKeyArchiveException.INVALID_PASSWORD],
      * [SecureKeyArchiveException.ARCHIVE_EMPTY],
-     * [SecureKeyArchiveException.FATAL_ERROR]
+     * [SecureKeyArchiveException.MALFORMED_ARCHIVEDATA]
      */
     @Throws(SecureKeyArchiveException::class)
     override fun archive(password: String): ByteArray {
@@ -599,9 +611,10 @@ class SecureKeyArchive private constructor(
      * Unarchives plaintext keys in this archive.
      *
      * @throws SecureKeyArchiveException with one of the following reasons:
-     * [SecureKeyArchiveException.ARCHIVE_EMPTY],
      * [SecureKeyArchiveException.INVALID_ARCHIVE_DATA],
-     * [SecureKeyArchiveException.FATAL_ERROR]
+     * [SecureKeyArchiveException.MALFORMED_KEYSET_DATA],
+     * [SecureKeyArchiveException.NO_KEYS_FOR_NAMESPACE],
+     * [SecureKeyArchiveException.DUPLICATE_KEY]
      */
     @Throws(SecureKeyArchiveException::class)
     override fun unarchive() {
@@ -616,11 +629,7 @@ class SecureKeyArchive private constructor(
                         SecureKeyArchiveException.INVALID_ARCHIVE_DATA,
                         "The Keys in the archive are empty",
                     )
-            keys.clear()
-            for (keyInfo in keysAsList) {
-                keyInfo.data = Base64.decode(keyInfo.base64Data)
-                keys.add(keyInfo)
-            }
+            selectKeys(keysAsList)
         }
     }
 
@@ -630,10 +639,11 @@ class SecureKeyArchive private constructor(
      * @param password the password to use to decrypt the archive.
      * @throws SecureKeyArchiveException with one of the following reasons:
      * [SecureKeyArchiveException.INVALID_PASSWORD],
-     * [SecureKeyArchiveException.ARCHIVE_EMPTY],
      * [SecureKeyArchiveException.INVALID_ARCHIVE_DATA],
+     * [SecureKeyArchiveException.MALFORMED_KEYSET_DATA],
      * [SecureKeyArchiveException.MALFORMED_ARCHIVEDATA],
-     * [SecureKeyArchiveException.FATAL_ERROR]
+     * [SecureKeyArchiveException.NO_KEYS_FOR_NAMESPACE],
+     * [SecureKeyArchiveException.DUPLICATE_KEY]
      */
     @Throws(SecureKeyArchiveException::class)
     override fun unarchive(password: String) {
@@ -740,11 +750,44 @@ class SecureKeyArchive private constructor(
                     SecureKeyArchiveException.MALFORMED_KEYSET_DATA,
                     "Unable to deserialise decrypted keys from the archive",
                 )
+        selectKeys(keyInfoArray.asList())
+    }
+
+    /**
+     * Keeps the keys of [archiveKeys] whose `NameSpace` is the key manager's namespace, and records
+     * every namespace in [archiveKeys]. Keys loaded before are discarded, even if this throws.
+     *
+     * @throws SecureKeyArchiveException [SecureKeyArchiveException.NO_KEYS_FOR_NAMESPACE] if no key is
+     * in the namespace, or [SecureKeyArchiveException.DUPLICATE_KEY] if two of them have the same
+     * name and type.
+     */
+    @Throws(SecureKeyArchiveException::class)
+    private fun selectKeys(archiveKeys: List<KeyInfo>) {
+        val namespace = keyManager.namespace
         keys.clear()
-        for (keyInfo in keyInfoArray) {
-            keyInfo.data = Base64.decode(keyInfo.base64Data)
-            keys.add(keyInfo)
+        archiveNamespaces.clear()
+        archiveKeys.mapNotNullTo(archiveNamespaces) { it.NameSpace }
+
+        val selected = archiveKeys.filter { it.NameSpace == namespace }
+        if (selected.isEmpty()) {
+            val found = archiveNamespaces.sorted().joinToString { "\"$it\"" }.ifEmpty { "none" }
+            val missing = archiveKeys.count { it.NameSpace == null }
+            throw SecureKeyArchiveException(
+                SecureKeyArchiveException.NO_KEYS_FOR_NAMESPACE,
+                "The archive has no keys in namespace \"$namespace\". Namespaces in the archive: $found; " +
+                    "keys with no NameSpace: $missing.",
+            )
         }
+        selected.groupBy { it.Type to it.Name }.values.firstOrNull { it.size > 1 }?.let {
+            throw SecureKeyArchiveException(
+                SecureKeyArchiveException.DUPLICATE_KEY,
+                "The archive has more than one ${it[0].Type} named \"${it[0].Name}\" in namespace \"$namespace\".",
+            )
+        }
+        for (keyInfo in selected) {
+            keyInfo.data = Base64.decode(keyInfo.base64Data)
+        }
+        keys.addAll(selected)
     }
 
     /**
@@ -752,6 +795,7 @@ class SecureKeyArchive private constructor(
      */
     override fun reset() {
         keys.clear()
+        archiveNamespaces.clear()
         keyArchive = null
     }
 
@@ -948,8 +992,10 @@ class SecureKeyArchive private constructor(
                 name: String,
                 keyType: KeyType,
                 data: ByteArray,
+                namespace: String,
             ): KeyInfo {
                 val keyInfo = KeyInfo()
+                keyInfo.NameSpace = namespace
                 keyInfo.Name = name
                 keyInfo.Type = keyType
                 keyInfo.data = data.copyOf(data.size)
@@ -1040,7 +1086,7 @@ class SecureKeyArchive private constructor(
          * @return a secure key archive that uses the nominated key manager.
          * @throws SecureKeyArchiveException if the loading failed with one of the following reasons:
          * [SecureKeyArchiveException.MALFORMED_ARCHIVEDATA],
-         * [SecureKeyArchiveException.FATAL_ERROR]
+         * [SecureKeyArchiveException.VERSION_MISMATCH]
          */
         @JvmStatic
         @Throws(SecureKeyArchiveException::class)
@@ -1059,7 +1105,7 @@ class SecureKeyArchive private constructor(
          * @return a secure key archive that uses the nominated key manager.
          * @throws SecureKeyArchiveException if the loading failed with one of the following reasons:
          * [SecureKeyArchiveException.MALFORMED_ARCHIVEDATA],
-         * [SecureKeyArchiveException.FATAL_ERROR]
+         * [SecureKeyArchiveException.VERSION_MISMATCH]
          */
         @JvmStatic
         @Throws(SecureKeyArchiveException::class)

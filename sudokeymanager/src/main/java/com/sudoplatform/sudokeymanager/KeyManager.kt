@@ -71,6 +71,9 @@ open class KeyManager(
     // Key related services
     protected var keyService: KeyService = KeyService()
 
+    override val namespace: String
+        get() = keyManagerStore.keyNamespace
+
     /**
      * Instantiates a KeyManager with the specified store.
      *
@@ -1234,8 +1237,7 @@ open class KeyManager(
     /**
      * Export all the keys.
      *
-     * @return a [Map] with the key name as the map key and the exported key type and bytes
-     * as the value. The map may be empty but it will not be null.
+     * @return the exported keys, each with its name, type and key bytes. The list may be empty.
      * @throws StoreNotExportable  if the key store does not permit keys to be exported.
      * @throws KeyManagerException if the key cannot be exported from the store.
      */

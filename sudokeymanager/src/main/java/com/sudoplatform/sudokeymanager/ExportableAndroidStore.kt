@@ -34,38 +34,12 @@ class ExportableAndroidStore : StoreInterface {
     // future use.
     private val symmetricKeyAlgorithm: String
 
-    // Key namespace used to prevent name clashes between keys used by multiple consumers of the
-    // underlying key store such as Android Keystore.
-    private var keyNamespace: String? = null
+    // Prefixed to every alias as `<namespace>.`. Null only for the internal store with no namespace
+    // that LegacyKeyManager reads from.
+    private val namespace: String?
 
-    /**
-     * Instantiates a ExportableAndroidStore.
-     *
-     * @param context Android app context.
-     * @param symmetricKeyAlgorithm symmetric key algorithm.
-     * @throws KeyManagerException
-     */
-    constructor(
-        context: Context,
-        symmetricKeyAlgorithm: String,
-    ) {
-        Objects.requireNonNull(context, "context can't be null.")
-        Objects.requireNonNull(symmetricKeyAlgorithm, "symmetricKeyAlgorithm can't be null.")
-        this.symmetricKeyAlgorithm = symmetricKeyAlgorithm
-        exportableStore = AndroidSQLiteStore(context)
-        try {
-            androidKeyStore = KeyStore.getInstance(ANDROID_KEY_STORE)
-            androidKeyStore?.load(null)
-        } catch (e: KeyStoreException) {
-            throw KeyManagerException(KEY_STORE_LOAD_ERROR_MSG, e)
-        } catch (e: CertificateException) {
-            throw KeyManagerException(KEY_STORE_LOAD_ERROR_MSG, e)
-        } catch (e: NoSuchAlgorithmException) {
-            throw KeyManagerException(KEY_STORE_LOAD_ERROR_MSG, e)
-        } catch (e: IOException) {
-            throw KeyManagerException(KEY_STORE_LOAD_ERROR_MSG, e)
-        }
-    }
+    override val keyNamespace: String
+        get() = namespace ?: KeyNamespaces.NONE
 
     /**
      * Instantiates a ExportableAndroidStore.
@@ -73,32 +47,15 @@ class ExportableAndroidStore : StoreInterface {
      * @param context Android app context.
      * @param symmetricKeyAlgorithm symmetric key algorithm.
      * @param keyNamespace key namespace to use to prevent name clashes when multiple consumers are
-     * using the same underlying key store.
+     * using the same underlying key store. Must not be empty.
      * @throws KeyManagerException
+     * @throws IllegalArgumentException if [keyNamespace] is empty.
      */
     constructor(
         context: Context,
         symmetricKeyAlgorithm: String,
-        keyNamespace: String?,
-    ) {
-        Objects.requireNonNull(context, "context can't be null.")
-        Objects.requireNonNull(symmetricKeyAlgorithm, "symmetricKeyAlgorithm can't be null.")
-        this.symmetricKeyAlgorithm = symmetricKeyAlgorithm
-        exportableStore = AndroidSQLiteStore(context, keyNamespace)
-        this.keyNamespace = keyNamespace
-        try {
-            androidKeyStore = KeyStore.getInstance(ANDROID_KEY_STORE)
-            androidKeyStore?.load(null)
-        } catch (e: KeyStoreException) {
-            throw KeyManagerException(KEY_STORE_LOAD_ERROR_MSG, e)
-        } catch (e: CertificateException) {
-            throw KeyManagerException(KEY_STORE_LOAD_ERROR_MSG, e)
-        } catch (e: NoSuchAlgorithmException) {
-            throw KeyManagerException(KEY_STORE_LOAD_ERROR_MSG, e)
-        } catch (e: IOException) {
-            throw KeyManagerException(KEY_STORE_LOAD_ERROR_MSG, e)
-        }
-    }
+        keyNamespace: String,
+    ) : this(context, symmetricKeyAlgorithm, keyNamespace, AndroidSQLiteStore.DEFAULT_DATABASE_NAME)
 
     /**
      * Instantiates a ExportableAndroidStore.
@@ -106,24 +63,45 @@ class ExportableAndroidStore : StoreInterface {
      * @param context Android app context.
      * @param symmetricKeyAlgorithm symmetric key algorithm.
      * @param keyNamespace key namespace to use to prevent name clashes when multiple consumers are
-     * using the same underlying key store.
+     * using the same underlying key store. Must not be empty.
      * @param databaseName database name to use for the SQLite database based key store.
      * @throws KeyManagerException
+     * @throws IllegalArgumentException if [keyNamespace] is empty.
      */
     constructor(
         context: Context,
         symmetricKeyAlgorithm: String,
-        keyNamespace: String?,
+        keyNamespace: String,
         databaseName: String?,
+    ) : this(
+        symmetricKeyAlgorithm,
+        KeyNamespaces.requireValid(keyNamespace),
+        AndroidSQLiteStore(context, keyNamespace, databaseName),
+    )
+
+    /**
+     * Instantiates a ExportableAndroidStore with no namespace over the default database, where key
+     * manager 9.x and earlier kept keys created with no namespace. Its [reset] and [getKeyNames]
+     * throw [UnsupportedOperationException].
+     */
+    internal constructor(
+        context: Context,
+        symmetricKeyAlgorithm: String,
+        noNamespace: NoNamespace,
+    ) : this(symmetricKeyAlgorithm, null, AndroidSQLiteStore(context, noNamespace))
+
+    private constructor(
+        symmetricKeyAlgorithm: String,
+        namespace: String?,
+        exportableStore: StoreInterface,
     ) {
-        Objects.requireNonNull(context, "context can't be null.")
         Objects.requireNonNull(symmetricKeyAlgorithm, "symmetricKeyAlgorithm can't be null.")
         this.symmetricKeyAlgorithm = symmetricKeyAlgorithm
-        exportableStore = AndroidSQLiteStore(context, keyNamespace, databaseName)
-        this.keyNamespace = keyNamespace
+        this.namespace = namespace
+        this.exportableStore = exportableStore
         try {
             androidKeyStore = KeyStore.getInstance(ANDROID_KEY_STORE)
-            androidKeyStore?.load(null)
+            androidKeyStore.load(null)
         } catch (e: KeyStoreException) {
             throw KeyManagerException(KEY_STORE_LOAD_ERROR_MSG, e)
         } catch (e: CertificateException) {
@@ -207,6 +185,19 @@ class ExportableAndroidStore : StoreInterface {
         Objects.requireNonNull(name, NAME_CANT_BE_NULL)
         Objects.requireNonNull(type, TYPE_CANT_BE_NULL)
         exportableStore.deleteKey(name, type)
+        deleteKeyStoreEntry(name)
+    }
+
+    /** Deletes the exportable copy of a key only, leaving any Android Keystore entry of that name. */
+    @Throws(KeyManagerException::class)
+    internal fun deleteExportableCopy(
+        name: String,
+        type: KeyType,
+    ) = exportableStore.deleteKey(name, type)
+
+    /** Deletes the Android Keystore entry of [name], which holds a symmetric key or a private key. */
+    @Throws(KeyManagerException::class)
+    internal fun deleteKeyStoreEntry(name: String) {
         try {
             androidKeyStore.deleteEntry(toNamespacedName(name))
         } catch (e: KeyStoreException) {
@@ -216,16 +207,13 @@ class ExportableAndroidStore : StoreInterface {
 
     @Throws(KeyManagerException::class)
     override fun reset() {
+        val prefix = namespacePrefix("reset")
         exportableStore.reset()
         try {
             val aliases = androidKeyStore.aliases()
             while (aliases.hasMoreElements()) {
                 val alias = aliases.nextElement()
-                if (keyNamespace != null) {
-                    if (alias.startsWith(keyNamespace + ".")) {
-                        androidKeyStore.deleteEntry(alias)
-                    }
-                } else {
+                if (alias.startsWith(prefix)) {
                     androidKeyStore.deleteEntry(alias)
                 }
             }
@@ -246,33 +234,34 @@ class ExportableAndroidStore : StoreInterface {
     }
 
     /**
-     * Returns the names of the keys in this key store.
+     * Returns the names of the keys in this store's namespace, without the namespace prefix. The
+     * namespace's master key isn't included.
      *
      * @return set containing the key names.
      * @throws KeyManagerException if a failure occurred while fetching the key names.
      */
     @Throws(KeyManagerException::class)
     override fun getKeyNames(): Set<String> {
-        val aliasSet: MutableSet<String> = HashSet(exportableStore.getKeyNames())
+        val prefix = namespacePrefix("getKeyNames")
+        val names: MutableSet<String> = HashSet(exportableStore.getKeyNames())
         try {
             val aliases = androidKeyStore.aliases()
             while (aliases.hasMoreElements()) {
                 val alias = aliases.nextElement()
-                if (keyNamespace != null) {
-                    if (alias.length > (keyNamespace + ".").length && alias.startsWith(keyNamespace!!)) {
-                        aliasSet.add(alias.substring((keyNamespace + ".").length))
-                    }
-                } else {
-                    aliasSet.add(alias)
+                if (alias.length > prefix.length && alias.startsWith(prefix)) {
+                    names.add(alias.substring(prefix.length))
                 }
             }
         } catch (e: KeyStoreException) {
             throw KeyManagerException(KEY_STORE_QUERY_ERROR_MSG, e)
         }
-        return aliasSet
+        names.remove(AndroidKeyManager.MASTER_KEY_NAME)
+        return names
     }
 
-    private fun toNamespacedName(name: String): String = if (keyNamespace != null) "$keyNamespace.$name" else name
+    private fun namespacePrefix(operation: String): String = "${namespace ?: throw KeyNamespaces.unsupportedWithoutNamespace(operation)}."
+
+    private fun toNamespacedName(name: String): String = if (namespace != null) "$namespace.$name" else name
 
     companion object {
         private const val ANDROID_KEY_STORE = "AndroidKeyStore"

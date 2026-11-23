@@ -37,8 +37,8 @@ import javax.security.auth.x500.X500Principal
 /**
  * KeyManager implementation using Android Keystore. Android Keystore provides system level
  * (or hardware level if supported by the device) key management and crypto. Keys in the
- * Android Keystore is only accessible by the app that had created them and all cryptographic
- * operations are performed at system level and keys are never passed to the user space.
+ * Android Keystore are only accessible by the app that created them. A copy of every key is also
+ * kept, encrypted, in the exportable store, so keys can be read and exported.
  */
 class AndroidKeyManager :
     KeyManager,
@@ -47,25 +47,9 @@ class AndroidKeyManager :
     // store.
     private val androidKeyStore: KeyStore
 
-    // Key namespace used to prevent name clashes between keys used by multiple consumers of the
-    // underlying key store such as Android Keystore.
-    private var keyNamespace: String? = null
-
-    /**
-     * Instantiate AndroidKeyManager.
-     *
-     * @param storeInterface Key store to use for exportable keys.
-     * @param androidKeyStore Android Keystore to use for securely storing keys.
-     * @throws KeyManagerException
-     */
-    constructor(
-        storeInterface: StoreInterface,
-        androidKeyStore: KeyStore,
-    ) : super(storeInterface) {
-        keyManagerStore.setSecureKeyDelegate(this)
-        this.androidKeyStore = androidKeyStore
-        createMasterKey()
-    }
+    // Prefixed to the master key and AndroidKeyStore aliases as `<namespace>.`. Null only for the
+    // internal key manager with no namespace that LegacyKeyManager reads through.
+    private val keyNamespace: String?
 
     /**
      * Instantiate AndroidKeyManager.
@@ -73,19 +57,45 @@ class AndroidKeyManager :
      * @param storeInterface Key store to use for exportable keys.
      * @param androidKeyStore Android Keystore to use for securely storing keys.
      * @param keyNamespace key namespace to use to prevent name clashes when multiple consumers are
-     * using the same underlying key store.
+     * using the same underlying key store. Must not be empty and must match the store's namespace.
      * @throws KeyManagerException
+     * @throws IllegalArgumentException if [keyNamespace] is empty or differs from the store's namespace.
      */
     constructor(
         storeInterface: StoreInterface,
         androidKeyStore: KeyStore,
+        keyNamespace: String,
+    ) : this(storeInterface, androidKeyStore, KeyNamespaces.requireValid(keyNamespace), checkStore = true)
+
+    /**
+     * Instantiate AndroidKeyManager with no namespace, for [LegacyKeyManager]. Keys can be used by
+     * name; [removeAllKeys], [exportKeys] and key archives throw [UnsupportedOperationException].
+     */
+    internal constructor(
+        storeInterface: StoreInterface,
+        androidKeyStore: KeyStore,
+        @Suppress("UNUSED_PARAMETER") noNamespace: NoNamespace,
+    ) : this(storeInterface, androidKeyStore, null, checkStore = false)
+
+    private constructor(
+        storeInterface: StoreInterface,
+        androidKeyStore: KeyStore,
         keyNamespace: String?,
+        checkStore: Boolean,
     ) : super(storeInterface) {
+        if (checkStore) {
+            require(keyNamespace == storeInterface.keyNamespace) {
+                "Key namespace \"$keyNamespace\" doesn't match the store's namespace \"${storeInterface.keyNamespace}\"."
+            }
+        }
+        this.keyNamespace = keyNamespace
         keyManagerStore.setSecureKeyDelegate(this)
         this.androidKeyStore = androidKeyStore
-        this.keyNamespace = keyNamespace
         createMasterKey()
     }
+
+    override val namespace: String
+        get() = keyNamespace ?: KeyNamespaces.NONE
 
     /** Create a non exportable symmetric key that will be used to secure the exportable keys.  */
     @Throws(KeyManagerException::class)
@@ -384,8 +394,15 @@ class AndroidKeyManager :
 
     @Throws(KeyManagerException::class)
     override fun removeAllKeys() {
+        if (keyNamespace == null) throw KeyNamespaces.unsupportedWithoutNamespace("removeAllKeys")
         super.removeAllKeys()
         createMasterKey()
+    }
+
+    @Throws(KeyManagerException::class)
+    override fun exportKeys(): List<KeyComponents> {
+        if (keyNamespace == null) throw KeyNamespaces.unsupportedWithoutNamespace("exportKeys")
+        return super.exportKeys()
     }
 
     private fun toNamespacedName(name: String): String = if (keyNamespace != null) "$keyNamespace.$name" else name
@@ -398,7 +415,7 @@ class AndroidKeyManager :
         private const val CERTIFICATE_GENERATOR_PROVIDER = "BC"
         private const val CERTIFICATE_PRINCIPAL_ANONYOME = "cn=Anonyome"
         private const val ANDROID_KEY_STORE = "AndroidKeyStore"
-        private const val MASTER_KEY_NAME = "com.anonyome.android.masterkey"
+        internal const val MASTER_KEY_NAME = "com.anonyome.android.masterkey"
         private const val NAME_CANT_BE_NULL = "name can't be null."
 
         /** Exception messages */

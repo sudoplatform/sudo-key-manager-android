@@ -22,62 +22,56 @@ class AndroidSQLiteStore :
     // Delegate for encrypting and decrypting keys.
     private var secureKeyDelegate: SecureKeyDelegateInterface? = null
 
-    // Key namespace used to prevent name clashes between keys used by multiple consumers of the
-    // underlying key store such as Android Keystore.
-    private var keyNamespace: String? = null
+    // Prefixed to every stored name as `<namespace>.`. Null only for the internal store with no
+    // namespace that LegacyKeyManager reads from.
+    private val namespace: String?
 
-    /**
-     * Instantiates AndroidSQLiteStore.
-     *
-     * @param context Android app context.
-     */
-    constructor(context: Context?) : super(context, DEFAULT_DATABASE_NAME, null, DATABASE_VERSION)
-
-    /**
-     * Instantiates AndroidSQLiteStore.
-     *
-     * @param context Android app context.
-     * @param keyNamespace key namespace to use to prevent name clashes when multiple consumers are
-     * using the same underlying key store.
-     */
-    constructor(context: Context?, keyNamespace: String?) : super(
-        context,
-        DEFAULT_DATABASE_NAME,
-        null,
-        DATABASE_VERSION,
-    ) {
-        this.keyNamespace = keyNamespace
-    }
+    override val keyNamespace: String
+        get() = namespace ?: KeyNamespaces.NONE
 
     /**
      * Instantiates AndroidSQLiteStore.
      *
      * @param context Android app context.
      * @param keyNamespace key namespace to use to prevent name clashes when multiple consumers are
-     * using the same underlying key store.
+     * using the same underlying key store. Must not be empty.
+     * @throws IllegalArgumentException if [keyNamespace] is empty.
+     */
+    constructor(context: Context?, keyNamespace: String) : this(context, keyNamespace, DEFAULT_DATABASE_NAME)
+
+    /**
+     * Instantiates AndroidSQLiteStore.
+     *
+     * @param context Android app context.
+     * @param keyNamespace key namespace to use to prevent name clashes when multiple consumers are
+     * using the same underlying key store. Must not be empty.
      * @param databaseName database name to use for the SQLite database based key store.
+     * @throws IllegalArgumentException if [keyNamespace] is empty.
      */
-    constructor(context: Context?, keyNamespace: String?, databaseName: String?) : super(
+    constructor(context: Context?, keyNamespace: String, databaseName: String?) : super(
         context,
         databaseName,
         null,
         DATABASE_VERSION,
     ) {
-        this.keyNamespace = keyNamespace
+        namespace = KeyNamespaces.requireValid(keyNamespace)
     }
 
     /**
-     * Instantiates AndroidSQLiteStore.
-     *
-     * @param context Android app context.
+     * Instantiates AndroidSQLiteStore with no namespace over the default database, where key
+     * manager 9.x and earlier kept keys created with no namespace. Its [reset] and [getKeyNames]
+     * throw [UnsupportedOperationException].
      */
-    constructor(context: Context?, secureKeyDelegate: SecureKeyDelegateInterface?) : super(
+    internal constructor(
+        context: Context?,
+        @Suppress("UNUSED_PARAMETER") noNamespace: NoNamespace,
+    ) : super(
         context,
         DEFAULT_DATABASE_NAME,
         null,
         DATABASE_VERSION,
     ) {
-        this.secureKeyDelegate = secureKeyDelegate
+        namespace = null
     }
 
     override fun onCreate(db: SQLiteDatabase) {
@@ -192,19 +186,10 @@ class AndroidSQLiteStore :
 
     @Throws(KeyManagerException::class)
     override fun reset() {
+        val namespace = namespace ?: throw KeyNamespaces.unsupportedWithoutNamespace("reset")
         val db = this.writableDatabase
         try {
-            if (keyNamespace != null) {
-                db.delete(
-                    StoreSchema.Keys.TABLE_NAME,
-                    StoreSchema.Keys.COLUMN_NAME_NAME + " LIKE ?",
-                    arrayOf(
-                        keyNamespace + ".%",
-                    ),
-                )
-            } else {
-                db.execSQL(SQL_DELETE_ALL)
-            }
+            db.delete(StoreSchema.Keys.TABLE_NAME, NAMESPACE_SELECTION, namespaceSelectionArgs(namespace))
         } catch (e: SQLException) {
             throw StoreException("Failed to reset the store.", e)
         }
@@ -217,59 +202,39 @@ class AndroidSQLiteStore :
     }
 
     /**
-     * Returns the names of the keys in this key store.
+     * Returns the names of the keys in this store's namespace, without the namespace prefix.
      *
      * @return set containing the key names.
      * @throws KeyManagerException if a failure occurred while fetching the key names.
      */
     @Throws(KeyManagerException::class)
     override fun getKeyNames(): Set<String> {
+        val namespace = namespace ?: throw KeyNamespaces.unsupportedWithoutNamespace("getKeyNames")
         val db = this.readableDatabase
         val columns = arrayOf(StoreSchema.Keys.COLUMN_NAME_NAME)
-        val aliases: MutableSet<String> = HashSet()
-        if (keyNamespace != null) {
-            try {
-                db
-                    .query(
-                        StoreSchema.Keys.TABLE_NAME,
-                        columns,
-                        StoreSchema.Keys.COLUMN_NAME_NAME + " LIKE ?",
-                        arrayOf(keyNamespace + ".%"),
-                        null,
-                        null,
-                        null,
-                    ).use { cursor ->
-                        while (cursor.moveToNext()) {
-                            aliases.add(cursor.getString(0).substring((keyNamespace + ".").length))
-                        }
+        val names: MutableSet<String> = HashSet()
+        try {
+            db
+                .query(
+                    StoreSchema.Keys.TABLE_NAME,
+                    columns,
+                    NAMESPACE_SELECTION,
+                    namespaceSelectionArgs(namespace),
+                    null,
+                    null,
+                    null,
+                ).use { cursor ->
+                    while (cursor.moveToNext()) {
+                        names.add(cursor.getString(0).substring(namespace.length + 1))
                     }
-            } catch (e: Exception) {
-                throw StoreException("Failed to retrieve key aliases.", e)
-            }
-        } else {
-            try {
-                db
-                    .query(
-                        StoreSchema.Keys.TABLE_NAME,
-                        columns,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                    ).use { cursor ->
-                        while (cursor.moveToNext()) {
-                            aliases.add(cursor.getString(0))
-                        }
-                    }
-            } catch (e: Exception) {
-                throw StoreException("Failed to retrieve key aliases.", e)
-            }
+                }
+        } catch (e: Exception) {
+            throw StoreException("Failed to retrieve key aliases.", e)
         }
-        return aliases
+        return names
     }
 
-    private fun toNamespacedName(name: String): String = if (keyNamespace != null) "$keyNamespace.$name" else name
+    private fun toNamespacedName(name: String): String = if (namespace != null) "$namespace.$name" else name
 
     companion object {
         // Database name,
@@ -280,7 +245,17 @@ class AndroidSQLiteStore :
 
         // SQL statements for various operations we need to execute.
         private const val SQL_DROP_TABLE = "DROP TABLE IF EXISTS " + StoreSchema.Keys.TABLE_NAME
-        private const val SQL_DELETE_ALL = "DELETE FROM " + StoreSchema.Keys.TABLE_NAME
+
+        /**
+         * Selects the names that start with `<namespace>.`, exactly and case-sensitively: under the
+         * column's BINARY collation, those are the names from `<namespace>.` up to, but not
+         * including, `<namespace>/` (`/` is the character after `.`).
+         */
+        private val NAMESPACE_SELECTION =
+            "${StoreSchema.Keys.COLUMN_NAME_NAME} >= ? AND ${StoreSchema.Keys.COLUMN_NAME_NAME} < ?"
+
+        private fun namespaceSelectionArgs(namespace: String) = arrayOf("$namespace.", "$namespace/")
+
         private const val NAME_CANT_BE_NULL = "name can't be null."
         private const val TYPE_CANT_BE_NULL = "type can't be null."
     }
